@@ -6,7 +6,12 @@ from typing import Any, cast
 
 import voluptuous as vol
 
-from homeassistant.config_entries import ConfigFlowResult
+from homeassistant.helpers.schema_config_entry_flow import (
+    SchemaCommonFlowHandler,
+    SchemaConfigFlowHandler,
+    SchemaFlowFormStep,
+    SchemaFlowMenuStep,
+)
 from homeassistant.const import (
     CONF_ENTITY_ID,
     CONF_NAME,
@@ -14,14 +19,7 @@ from homeassistant.const import (
     CONF_STATE,
     STATE_ON,
 )
-from homeassistant.core import async_get_hass
 from homeassistant.helpers import selector
-from homeassistant.helpers.schema_config_entry_flow import (
-    SchemaCommonFlowHandler,
-    SchemaConfigFlowHandler,
-    SchemaFlowFormStep,
-    SchemaFlowMenuStep,
-)
 
 from .const import (
     CONF_ALERT_MESSAGE,
@@ -58,26 +56,23 @@ async def _next_step_notifier(options: dict) -> str:
 async def get_options_schema(
     handler: SchemaCommonFlowHandler,
 ) -> vol.Schema:
-    """Get schema for additional options."""
-    # Try to get the entity_id from prior step options so we can offer
-    # real state values as a dropdown.  Fall back gracefully if unavailable.
-    entity_id: str | None = None
-    state_options: list[selector.SelectOptionDict] = []
+    """Get schema for additional options.
 
-    try:
-        entity_id = handler.options.get(CONF_ENTITY_ID)
-    except AttributeError:
-        pass
+    Tries to offer a dropdown of real state values for the watched entity.
+    Falls back to a free-text field when the entity is unknown.
+    """
+    # Use handler.parent_handler.hass — the correct, non-deprecated path.
+    hass = handler.parent_handler.hass
+
+    entity_id: str | None = handler.options.get(CONF_ENTITY_ID)
+    state_options: list[selector.SelectOptionDict] = []
 
     if entity_id:
         try:
-            hass = async_get_hass()
             entity_state = hass.states.get(entity_id)
             if entity_state is not None:
-                current_state = entity_state.state
-                # Build option list: current state first, then common extras
                 seen: set[str] = set()
-                for s in [current_state, "on", "off", "home", "not_home", "idle"]:
+                for s in [entity_state.state, "on", "off", "home", "not_home", "idle"]:
                     if s and s not in seen:
                         state_options.append(
                             selector.SelectOptionDict(value=s, label=s)
@@ -95,7 +90,6 @@ async def get_options_schema(
             )
         )
     else:
-        # Fallback: free text (e.g. during initial config before entity is known)
         state_selector = selector.TextSelector()
 
     return vol.Schema(
@@ -125,15 +119,13 @@ async def get_options_schema(
 async def get_notifier_schema(
     handler: SchemaCommonFlowHandler,
 ) -> vol.Schema:
-    """Update list with notify services."""
-    hass = async_get_hass()
-    all_services = hass.services.async_services()
-    notify_services = all_services.get("notify", {})
-    notify_keys = list(notify_services.keys())
-
+    """Build schema listing all available notify services."""
+    # Use handler.parent_handler.hass — the correct, non-deprecated path.
+    hass = handler.parent_handler.hass
+    notify_services = hass.services.async_services().get("notify", {})
     notify_options = [
         selector.SelectOptionDict(value=key, label=key.replace("_", " ").title())
-        for key in notify_keys
+        for key in sorted(notify_services.keys())
     ]
 
     return vol.Schema(
@@ -142,6 +134,7 @@ async def get_notifier_schema(
                 selector.SelectSelectorConfig(
                     options=notify_options,
                     multiple=True,
+                    custom_value=True,
                 )
             ),
             vol.Optional(CONF_ALERT_MESSAGE): selector.TemplateSelector(),
@@ -185,4 +178,4 @@ class ConfigFlowHandler(SchemaConfigFlowHandler, domain=DOMAIN):
 
     def async_config_entry_title(self, options: Mapping[str, Any]) -> str:
         """Return config entry title."""
-        return cast(str, options["name"]) if "name" in options else ""
+        return cast(str, options[CONF_NAME]) if CONF_NAME in options else ""
