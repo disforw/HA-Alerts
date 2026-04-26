@@ -31,12 +31,13 @@ from homeassistant.const import (
 )
 from homeassistant.core import Event, HomeAssistant, ServiceCall
 from homeassistant.helpers import service
-import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.entity import ToggleEntity
+from homeassistant.helpers.entity_component import EntityComponent
 from homeassistant.helpers.event import (
     async_track_point_in_time,
     async_track_state_change_event,
 )
+import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.template import Template
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import slugify
@@ -56,6 +57,8 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+SCAN_INTERVAL = timedelta(seconds=0)
 
 ALERT_SCHEMA = vol.Schema(
     {
@@ -88,7 +91,7 @@ CREATE_SERVICE_SCHEMA = vol.Schema(
         vol.Required(CONF_NAME): cv.string,
         vol.Required(CONF_ENTITY_ID): cv.entity_id,
         vol.Optional(CONF_STATE, default=STATE_ON): cv.string,
-        vol.Required(CONF_REPEAT): vol.Coerce(int),
+        vol.Required(CONF_REPEAT): vol.All(cv.ensure_list, [vol.Coerce(str)]),
         vol.Optional(CONF_SKIP_FIRST, default=DEFAULT_SKIP_FIRST): cv.boolean,
         vol.Optional(CONF_CAN_ACK, default=DEFAULT_CAN_ACK): cv.boolean,
         vol.Required(CONF_NOTIFIERS): vol.All(cv.ensure_list, [cv.string]),
@@ -103,7 +106,7 @@ UPDATE_SERVICE_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_ENTITY_ID): cv.entity_id,
         vol.Optional(CONF_STATE): cv.string,
-        vol.Optional(CONF_REPEAT): vol.Coerce(int),
+        vol.Optional(CONF_REPEAT): vol.All(cv.ensure_list, [vol.Coerce(str)]),
         vol.Optional(CONF_SKIP_FIRST): cv.boolean,
         vol.Optional(CONF_CAN_ACK): cv.boolean,
         vol.Optional(CONF_NOTIFIERS): vol.All(cv.ensure_list, [cv.string]),
@@ -138,12 +141,13 @@ async def async_register_management_services(hass: HomeAssistant) -> None:
 
     async def async_handle_create(service_call: ServiceCall) -> None:
         """Create a new HA Alert via service call."""
-        repeat_val: int = int(service_call.data[CONF_REPEAT])
         options: dict[str, Any] = {
             CONF_NAME: service_call.data[CONF_NAME],
             CONF_ENTITY_ID: service_call.data[CONF_ENTITY_ID],
             CONF_STATE: service_call.data.get(CONF_STATE, STATE_ON),
-            CONF_REPEAT: repeat_val,
+            # Keep as list for internal use; will be converted to single float when
+            # passed to the flow step (NumberSelector expects a single number).
+            CONF_REPEAT: service_call.data[CONF_REPEAT],
             CONF_SKIP_FIRST: service_call.data.get(CONF_SKIP_FIRST, DEFAULT_SKIP_FIRST),
             CONF_CAN_ACK: service_call.data.get(CONF_CAN_ACK, DEFAULT_CAN_ACK),
             CONF_NOTIFIERS: service_call.data[CONF_NOTIFIERS],
@@ -168,11 +172,18 @@ async def async_register_management_services(hass: HomeAssistant) -> None:
         )
 
         # Step 2: options — state, repeat, can_acknowledge, skip_first
+        # CONF_REPEAT must be a single number to match the NumberSelector schema.
+        # The service call receives it as a list; take the first element.
+        repeat_val = options[CONF_REPEAT]
+        if isinstance(repeat_val, list):
+            repeat_val = float(repeat_val[0])
+        else:
+            repeat_val = float(repeat_val)
         await hass.config_entries.flow.async_configure(
             flow_id,
             user_input={
                 CONF_STATE: options[CONF_STATE],
-                CONF_REPEAT: options[CONF_REPEAT],
+                CONF_REPEAT: repeat_val,
                 CONF_CAN_ACK: options[CONF_CAN_ACK],
                 CONF_SKIP_FIRST: options[CONF_SKIP_FIRST],
             },
@@ -217,7 +228,10 @@ async def async_register_management_services(hass: HomeAssistant) -> None:
                     if key in service_call.data:
                         val = service_call.data[key]
                         if key == CONF_REPEAT:
-                            val = int(val)
+                            # CONF_REPEAT is stored as a single float (matching what
+                            # the NumberSelector UI produces). Convert list→first item.
+                            repeat_list = val if isinstance(val, list) else [val]
+                            val = float(repeat_list[0])
                         new_options[key] = val
                 hass.config_entries.async_update_entry(entry, options=new_options)
                 await hass.config_entries.async_reload(entry.entry_id)
@@ -244,104 +258,19 @@ async def async_register_management_services(hass: HomeAssistant) -> None:
     )
 
 
-async def async_setup_services(hass: HomeAssistant, entities: list[Alert]) -> None:
-    """Set up alert services for entities."""
-
-    async def async_handle_alert_service(service_call: ServiceCall) -> None:
-        """Handle calls to alert services."""
-        alert: Alert
-        alert_ids = await service.async_extract_entity_ids(hass, service_call)
-
-        for alert_id in alert_ids:
-            for alert in entities:
-                if alert.entity_id != alert_id:
-                    continue
-
-                alert.async_set_context(service_call.context)
-                if service_call.service == SERVICE_TURN_ON:
-                    await alert.async_turn_on()
-                elif service_call.service == SERVICE_TOGGLE:
-                    await alert.async_toggle()
-                else:
-                    await alert.async_turn_off()
-
-    hass.services.async_register(
-        DOMAIN,
-        SERVICE_TURN_OFF,
-        async_handle_alert_service,
-        schema=ALERT_SERVICE_SCHEMA,
-    )
-    hass.services.async_register(
-        DOMAIN,
-        SERVICE_TURN_ON,
-        async_handle_alert_service,
-        schema=ALERT_SERVICE_SCHEMA,
-    )
-    hass.services.async_register(
-        DOMAIN,
-        SERVICE_TOGGLE,
-        async_handle_alert_service,
-        schema=ALERT_SERVICE_SCHEMA,
-    )
-
-
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up the HA Alerts component from a config entry."""
-    name: str = entry.options[CONF_NAME]
-    watched_entity_id: str = entry.options[CONF_ENTITY_ID]
-    alert_state: str = entry.options[CONF_STATE]
-    repeat: int = entry.options[CONF_REPEAT]
-    skip_first: bool = entry.options[CONF_SKIP_FIRST]
-    message_template: str | None = entry.options.get(CONF_ALERT_MESSAGE)
-    done_message_template: str | None = entry.options.get(CONF_DONE_MESSAGE)
-    notifiers: list[str] = entry.options[CONF_NOTIFIERS]
-    can_ack: bool = entry.options[CONF_CAN_ACK]
-    title_template: str | None = entry.options.get(CONF_TITLE)
-    data: dict[Any, Any] = entry.options.get(CONF_DATA, {})
-
-    # Alert entity expects a list of floats; wrap single integer value
-    repeat_float = [float(repeat)]
-
-    entity = Alert(
-        hass,
-        slugify(name),
-        name,
-        watched_entity_id,
-        alert_state,
-        repeat_float,
-        skip_first,
-        Template(message_template) if message_template else None,
-        Template(done_message_template) if done_message_template else None,
-        notifiers,
-        can_ack,
-        Template(title_template) if title_template else None,
-        data,
-    )
-
-    await async_setup_services(hass, [entity])
-    await async_register_management_services(hass)
-    entry.async_on_unload(entry.add_update_listener(update_listener))
-    entity.async_write_ha_state()
-    return True
-
-
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload an HA Alerts entry."""
-    return True
-
-
-async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Handle options update."""
-    await hass.config_entries.async_reload(entry.entry_id)
-
-
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Set up the HA Alerts component from YAML."""
-    entities: list[Alert] = []
+    """Set up the HA Alerts component."""
+    # Always register management services at setup time so they are available
+    # even before any config entries exist.
+    await async_register_management_services(hass)
+
+    component = EntityComponent[Alert](_LOGGER, DOMAIN, hass)
+    hass.data[DOMAIN] = component
 
     if DOMAIN not in config:
-        await async_register_management_services(hass)
         return True
+
+    entities: list[Alert] = []
 
     for object_id, cfg in config[DOMAIN].items():
         if not cfg:
@@ -377,16 +306,123 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             )
         )
 
-    if not entities:
-        return False
-
-    await async_setup_services(hass, entities)
-    await async_register_management_services(hass)
-
-    for alert in entities:
-        alert.async_write_ha_state()
+    if entities:
+        await component.async_add_entities(entities)
+        await _async_setup_alert_services(hass, component)
 
     return True
+
+
+async def _async_setup_alert_services(
+    hass: HomeAssistant, component: EntityComponent[Alert]
+) -> None:
+    """Set up turn_on/turn_off/toggle services for alert entities."""
+
+    async def async_handle_alert_service(service_call: ServiceCall) -> None:
+        """Handle calls to alert services."""
+        alert_ids = await service.async_extract_entity_ids(hass, service_call)
+
+        for alert in component.entities:
+            if alert.entity_id not in alert_ids:
+                continue
+            alert.async_set_context(service_call.context)
+            if service_call.service == SERVICE_TURN_ON:
+                await alert.async_turn_on()
+            elif service_call.service == SERVICE_TOGGLE:
+                await alert.async_toggle()
+            else:
+                await alert.async_turn_off()
+
+    if not hass.services.has_service(DOMAIN, SERVICE_TURN_OFF):
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_TURN_OFF,
+            async_handle_alert_service,
+            schema=ALERT_SERVICE_SCHEMA,
+        )
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_TURN_ON,
+            async_handle_alert_service,
+            schema=ALERT_SERVICE_SCHEMA,
+        )
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_TOGGLE,
+            async_handle_alert_service,
+            schema=ALERT_SERVICE_SCHEMA,
+        )
+
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Set up the HA Alerts component from a config entry."""
+    name: str = entry.options[CONF_NAME]
+    watched_entity_id: str = entry.options[CONF_ENTITY_ID]
+    alert_state: str = entry.options[CONF_STATE]
+    # CONF_REPEAT is stored as a single number (float) by the NumberSelector in the
+    # config flow UI. Wrap it in a list so Alert receives list[float] as expected.
+    repeat_raw = entry.options[CONF_REPEAT]
+    if isinstance(repeat_raw, list):
+        repeat_float = [float(r) for r in repeat_raw]
+    else:
+        repeat_float = [float(repeat_raw)]
+    skip_first: bool = entry.options[CONF_SKIP_FIRST]
+    message_template: str | None = entry.options.get(CONF_ALERT_MESSAGE)
+    done_message_template: str | None = entry.options.get(CONF_DONE_MESSAGE)
+    notifiers: list[str] = entry.options[CONF_NOTIFIERS]
+    can_ack: bool = entry.options[CONF_CAN_ACK]
+    title_template: str | None = entry.options.get(CONF_TITLE)
+    data: dict[Any, Any] = entry.options.get(CONF_DATA, {})
+
+    entity = Alert(
+        hass,
+        slugify(name),
+        name,
+        watched_entity_id,
+        alert_state,
+        repeat_float,
+        skip_first,
+        Template(message_template) if message_template else None,
+        Template(done_message_template) if done_message_template else None,
+        notifiers,
+        can_ack,
+        Template(title_template) if title_template else None,
+        data,
+    )
+
+    # Add the entity to the component so it appears in the entity registry.
+    component: EntityComponent[Alert] = hass.data.get(DOMAIN)
+    if component is None:
+        # Fallback: create component if async_setup wasn't called (e.g., during tests).
+        component = EntityComponent[Alert](_LOGGER, DOMAIN, hass)
+        hass.data[DOMAIN] = component
+
+    await component.async_add_entities([entity])
+    await _async_setup_alert_services(hass, component)
+
+    entry.async_on_unload(entry.add_update_listener(update_listener))
+    return True
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Unload an HA Alerts entry."""
+    component: EntityComponent[Alert] | None = hass.data.get(DOMAIN)
+    if component is None:
+        return True
+
+    # Remove the entity for this entry from the component.
+    entity_id = f"{DOMAIN}.{slugify(entry.options.get(CONF_NAME, ''))}"
+    for entity in list(component.entities):
+        if entity.entity_id == entity_id:
+            await component.async_remove_entity(entity_id)
+            break
+
+    return True
+
+
+async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Handle options update."""
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 class Alert(ToggleEntity):
