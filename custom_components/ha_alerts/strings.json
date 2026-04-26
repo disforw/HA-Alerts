@@ -1,0 +1,95 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "HA Alerts",
+        "description": "Set up a new HA Alert. You will be able to configure repeat intervals, notification services, and message templates in the following steps.",
+        "data": {
+          "name": "Name",
+          "entity_id": "Entity"
+        },
+        "data_description": {
+          "name": "A friendly name for this alert.",
+          "entity_id": "The entity to watch for state changes."
+        }
+      },
+      "options": {
+        "title": "Alert Options",
+        "data": {
+          "state": "Alert State",
+          "repeat": "Repeat Intervals (minutes)",
+          "can_acknowledge": "Can Acknowledge",
+          "skip_first": "Skip First Notification"
+        },
+        "data_description": {
+          "state": "The state that triggers the alert (e.g. 'on').",
+          "repeat": "How often to repeat notifications (in minutes). Add multiple values for escalating intervals.",
+          "can_acknowledge": "Allow the alert to be acknowledged (silenced) via the entity toggle.",
+          "skip_first": "Skip the first notification and only alert after the first repeat interval."
+        }
+      },
+      "notifier": {
+        "title": "Notification Services",
+        "data": {
+          "notifiers": "Notification Services",
+          "message": "Message Template",
+          "done_message": "Done Message Template",
+          "title": "Title Template",
+          "data": "Extra Data"
+        },
+        "data_description": {
+          "notifiers": "Select one or more notify services to send alerts through.",
+          "message": "Optional Jinja2 template for the alert message. Defaults to the alert name.",
+          "done_message": "Optional Jinja2 template for the message sent when the alert condition clears.",
+          "title": "Optional Jinja2 template for the notification title.",
+          "data": "Optional extra data payload to pass to the notification service."
+        }
+      }
+    },
+    "error": {
+      "repeat_error": "Repeat intervals must be whole numbers (e.g. 5, 10, 30)."
+    },
+    "abort": {
+      "already_configured": "This alert is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Alert Options",
+        "data": {
+          "state": "Alert State",
+          "repeat": "Repeat Intervals (minutes)",
+          "can_acknowledge": "Can Acknowledge",
+          "skip_first": "Skip First Notification"
+        },
+        "data_description": {
+          "state": "The state that triggers the alert (e.g. 'on').",
+          "repeat": "How often to repeat notifications (in minutes). Add multiple values for escalating intervals.",
+          "can_acknowledge": "Allow the alert to be acknowledged (silenced) via the entity toggle.",
+          "skip_first": "Skip the first notification and only alert after the first repeat interval."
+        }
+      },
+      "notifier": {
+        "title": "Notification Services",
+        "data": {
+          "notifiers": "Notification Services",
+          "message": "Message Template",
+          "done_message": "Done Message Template",
+          "title": "Title Template",
+          "data": "Extra Data"
+        },
+        "data_description": {
+          "notifiers": "Select one or more notify services to send alerts through.",
+          "message": "Optional Jinja2 template for the alert message. Defaults to the alert name.",
+          "done_message": "Optional Jinja2 template for the message sent when the alert condition clears.",
+          "title": "Optional Jinja2 template for the notification title.",
+          "data": "Optional extra data payload to pass to the notification service."
+        }
+      }
+    },
+    "error": {
+      "repeat_error": "Repeat intervals must be whole numbers (e.g. 5, 10, 30)."
+    }
+  }
+}
