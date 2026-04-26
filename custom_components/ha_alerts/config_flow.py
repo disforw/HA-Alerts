@@ -6,6 +6,8 @@ from typing import Any, cast
 
 import voluptuous as vol
 
+from homeassistant.config_entries import ConfigFlow
+from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.schema_config_entry_flow import (
     SchemaCommonFlowHandler,
@@ -36,51 +38,22 @@ from .const import (
     DOMAIN,
 )
 
+USER_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_NAME): selector.TextSelector(),
+        vol.Required(CONF_ENTITY_ID): selector.EntitySelector(),
+    }
+)
+
+
+async def _next_step_options(options: dict) -> str:
+    """Return next step: options."""
+    return "options"
+
 
 async def _next_step_notifier(options: dict) -> str:
     """Return next step: notifier."""
     return "notifier"
-
-
-async def get_config_schema(
-    handler: SchemaCommonFlowHandler,
-) -> vol.Schema:
-    """Get full schema for the initial config flow step.
-
-    Combines name, entity_id, and all alert options into a single step so that
-    all data is collected at once.  This avoids the multi-step accumulation
-    problem where only the first step's data (name + entity_id) would be
-    visible to the framework when creating the entry.
-
-    The state selector falls back to a free-text field here because we don't
-    yet have an entity_id to look up the current state value.  The options flow
-    uses get_options_schema instead, which CAN offer a state dropdown because
-    the entity_id is already known from entry.options.
-    """
-    return vol.Schema(
-        {
-            vol.Required(CONF_NAME): selector.TextSelector(),
-            vol.Required(CONF_ENTITY_ID): selector.EntitySelector(),
-            vol.Required(CONF_STATE, default=STATE_ON): selector.TextSelector(),
-            vol.Required(
-                CONF_REPEAT, default=DEFAULT_REPEAT
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(
-                    min=1,
-                    max=9999,
-                    step=1,
-                    mode=selector.NumberSelectorMode.BOX,
-                    unit_of_measurement="minutes",
-                )
-            ),
-            vol.Required(
-                CONF_CAN_ACK, default=DEFAULT_CAN_ACK
-            ): selector.BooleanSelector(),
-            vol.Required(
-                CONF_SKIP_FIRST, default=DEFAULT_SKIP_FIRST
-            ): selector.BooleanSelector(),
-        }
-    )
 
 
 async def get_options_schema(
@@ -175,23 +148,13 @@ async def get_notifier_schema(
     )
 
 
-# Config flow: two steps.
-#
-# Step 1 ("user") — collects name, entity_id, state, repeat, can_ack, skip_first
-#   all in a single form so SchemaConfigFlowHandler stores the full set of
-#   options in one shot.
-#
-# Step 2 ("notifier") — collects notifiers + optional message templates.
-#
-# Previously this was three steps (user → options → notifier).  The bug: the
-# SchemaConfigFlowHandler framework accumulates each step's data into
-# self._options, but the intermediate "options" step was never committed to
-# entry.options before the flow moved on.  Collapsing steps 1+2 into a single
-# "user" step guarantees all required keys are present in entry.options when
-# async_setup_entry is called.
 CONFIG_FLOW: dict[str, SchemaFlowFormStep | SchemaFlowMenuStep] = {
     "user": SchemaFlowFormStep(
-        get_config_schema,
+        USER_SCHEMA,
+        next_step=_next_step_options,
+    ),
+    "options": SchemaFlowFormStep(
+        get_options_schema,
         next_step=_next_step_notifier,
     ),
     "notifier": SchemaFlowFormStep(
@@ -220,21 +183,42 @@ class ConfigFlowHandler(SchemaConfigFlowHandler, domain=DOMAIN):
         """Return config entry title."""
         return cast(str, options[CONF_NAME]) if CONF_NAME in options else ""
 
+    @callback
+    def async_create_entry(
+        self,
+        data: Mapping[str, Any],
+        **kwargs: Any,
+    ) -> FlowResult:
+        """Override entry creation to ensure all step data ends up in entry.options.
+
+        SchemaConfigFlowHandler calls this with data=<all accumulated step data>.
+        We explicitly bypass SchemaConfigFlowHandler.async_create_entry to avoid
+        its **kwargs forwarding, which causes duplicate-kwarg TypeErrors when
+        async_step_import (or any caller) already passes title/options explicitly.
+
+        By overriding here we guarantee that regardless of the call path:
+          - entry.data  = {} (nothing sensitive in data)
+          - entry.options = all step data, including CONF_NAME and CONF_ENTITY_ID
+            collected in the 'user' step, plus CONF_STATE/CONF_REPEAT/etc. from
+            'options', plus CONF_NOTIFIERS from 'notifier'
+        """
+        self.async_config_flow_finished(data)
+        return ConfigFlow.async_create_entry(
+            self,
+            title=self.async_config_entry_title(data),
+            data={},
+            options=dict(data),
+        )
+
     async def async_step_import(self, import_data: dict[str, Any]) -> FlowResult:
         """Handle import from ha_alerts.create service call.
 
         Issue #2 fix: the create service now routes through SOURCE_IMPORT instead
-        of driving the multi-step SchemaConfigFlowHandler UI pipeline
-        programmatically.  This single step accepts validated service data
-        directly, avoiding the UI-selector validation mismatch and the lack of
-        error handling in the original sequential async_configure() approach.
-
-        We bypass SchemaConfigFlowHandler.async_create_entry here and call the
-        ConfigFlow base class directly so we can set options= explicitly without
-        triggering the duplicate-keyword conflict that would otherwise arise.
+        of driving the 3-step SchemaConfigFlowHandler UI pipeline programmatically.
+        This single step accepts validated service data directly, avoiding the
+        UI-selector validation mismatch and the lack of error handling in the
+        original sequential async_configure() approach.
         """
-        from homeassistant.config_entries import ConfigFlow as _ConfigFlow
-
         # Normalise CONF_REPEAT to a single float so it matches what the
         # NumberSelector UI stores and what async_setup_entry expects.
         repeat_raw = import_data.get(CONF_REPEAT, [1])
@@ -243,9 +227,6 @@ class ConfigFlowHandler(SchemaConfigFlowHandler, domain=DOMAIN):
         else:
             import_data[CONF_REPEAT] = float(repeat_raw)
 
-        return _ConfigFlow.async_create_entry(
-            self,
-            title=import_data.get(CONF_NAME, ""),
-            data={},
-            options=import_data,
-        )
+        # Pass data=import_data so our async_create_entry override receives all
+        # fields and routes them to entry.options correctly.
+        return self.async_create_entry(data=import_data)
