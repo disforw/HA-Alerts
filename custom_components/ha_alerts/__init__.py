@@ -469,6 +469,7 @@ class Alert(ToggleEntity):
         self._send_done_message = False
         self._context = None
         self.entity_id = f"{DOMAIN}.{entity_id}"
+        self._attr_unique_id = f"{DOMAIN}_{entity_id}"
 
         async_track_state_change_event(
             hass, [watched_entity_id], self.watched_entity_change
