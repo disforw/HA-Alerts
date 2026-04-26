@@ -1,11 +1,11 @@
 {
   "domain": "ha_alerts",
   "name": "HA Alerts",
-  "version": "0.1.0",
-  "documentation": "https://github.com/disforw/HA-Alerts",
-  "issue_tracker": "https://github.com/disforw/HA-Alerts/issues",
   "after_dependencies": ["notify"],
   "codeowners": ["@disforw"],
   "config_flow": true,
-  "iot_class": "local_push"
+  "documentation": "https://github.com/disforw/HA-Alerts",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/disforw/HA-Alerts/issues",
+  "version": "0.1.0"
 }
