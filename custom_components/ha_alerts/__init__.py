@@ -51,6 +51,7 @@ from .const import (
     CONF_SKIP_FIRST,
     CONF_TITLE,
     DEFAULT_CAN_ACK,
+    DEFAULT_REPEAT,
     DEFAULT_SKIP_FIRST,
     DOMAIN,
 )
@@ -343,25 +344,44 @@ async def _async_setup_alert_services(
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up the HA Alerts component from a config entry."""
-    name: str = entry.options[CONF_NAME]
-    watched_entity_id: str = entry.options[CONF_ENTITY_ID]
-    alert_state: str = entry.options[CONF_STATE]
+    """Set up the HA Alerts component from a config entry.
+
+    Uses .get() with defaults for all keys that may be absent in entries that were
+    created by the old 3-step config flow (which only stored CONF_NAME and
+    CONF_ENTITY_ID in entry.options).  Without defaults, those entries would raise
+    a KeyError here, producing a red error indicator in the HA UI with no working
+    entity.
+    """
+    name: str = entry.options.get(CONF_NAME, "")
+    watched_entity_id: str = entry.options.get(CONF_ENTITY_ID, "")
+    alert_state: str = entry.options.get(CONF_STATE, STATE_ON)
     # CONF_REPEAT is stored as a single number (float) by the NumberSelector in the
     # config flow UI, or as a list when coming from the service / YAML path.
     # Normalise to list[float] so Alert always receives the same type.
-    repeat_raw = entry.options[CONF_REPEAT]
+    repeat_raw = entry.options.get(CONF_REPEAT, DEFAULT_REPEAT)
     if isinstance(repeat_raw, list):
         repeat_float = [float(r) for r in repeat_raw]
     else:
         repeat_float = [float(repeat_raw)]
-    skip_first: bool = entry.options[CONF_SKIP_FIRST]
+    skip_first: bool = entry.options.get(CONF_SKIP_FIRST, DEFAULT_SKIP_FIRST)
     message_template: str | None = entry.options.get(CONF_ALERT_MESSAGE)
     done_message_template: str | None = entry.options.get(CONF_DONE_MESSAGE)
-    notifiers: list[str] = entry.options[CONF_NOTIFIERS]
-    can_ack: bool = entry.options[CONF_CAN_ACK]
+    notifiers: list[str] = entry.options.get(CONF_NOTIFIERS, [])
+    can_ack: bool = entry.options.get(CONF_CAN_ACK, DEFAULT_CAN_ACK)
     title_template: str | None = entry.options.get(CONF_TITLE)
     data: dict[Any, Any] = entry.options.get(CONF_DATA, {})
+
+    # Guard: if name or entity_id is missing, the entry is irrecoverably broken
+    # (nothing to watch or name the entity).  Log and fail cleanly.
+    if not name or not watched_entity_id:
+        _LOGGER.error(
+            "ha_alerts entry %s is missing required options (name=%r, entity_id=%r). "
+            "Please delete and re-add the alert via the UI.",
+            entry.entry_id,
+            name,
+            watched_entity_id,
+        )
+        return False
 
     await async_register_management_services(hass)
 
