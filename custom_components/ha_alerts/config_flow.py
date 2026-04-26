@@ -63,7 +63,7 @@ def validate_input(user_input: dict[str, Any]) -> dict[str, Any]:
 
 def get_options_schema(
     flow_handler: SchemaConfigFlowHandler,
-    user_input: dict[str, Any],
+    user_input: dict[str, Any] | None = None,
 ) -> vol.Schema:
     """Get schema for additional options."""
     return vol.Schema(
@@ -89,7 +89,7 @@ def get_options_schema(
 
 def get_notifier_schema(
     flow_handler: SchemaConfigFlowHandler,
-    user_input: dict[str, Any],
+    user_input: dict[str, Any] | None = None,
 ) -> vol.Schema:
     """Update list with notify services."""
     hass = async_get_hass()
@@ -120,25 +120,15 @@ def get_notifier_schema(
     )
 
 
-async def _next_step_options(_: dict) -> str:
-    """Return next step: options."""
-    return "options"
-
-
-async def _next_step_notifier(_: dict) -> str:
-    """Return next step: notifier."""
-    return "notifier"
-
-
 CONFIG_FLOW: dict[str, SchemaFlowFormStep | SchemaFlowMenuStep] = {
     "user": SchemaFlowFormStep(
         CONFIG_SCHEMA,
-        next_step=_next_step_options,
+        next_step=lambda _: "options",
     ),
     "options": SchemaFlowFormStep(
         get_options_schema,
         validate_input,
-        next_step=_next_step_notifier,
+        next_step=lambda _: "notifier",
     ),
     "notifier": SchemaFlowFormStep(
         get_notifier_schema,
@@ -149,7 +139,7 @@ OPTIONS_FLOW: dict[str, SchemaFlowFormStep | SchemaFlowMenuStep] = {
     "init": SchemaFlowFormStep(
         get_options_schema,
         validate_input,
-        next_step=_next_step_notifier,
+        next_step=lambda _: "notifier",
     ),
     "notifier": SchemaFlowFormStep(
         get_notifier_schema,
