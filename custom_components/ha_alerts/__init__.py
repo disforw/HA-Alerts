@@ -256,6 +256,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     component = EntityComponent[Alert](_LOGGER, DOMAIN, hass)
     hass.data[f"{DOMAIN}_component"] = component
+    await component.async_setup({})
 
     if DOMAIN not in config:
         return True
@@ -387,20 +388,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await async_register_management_services(hass)
 
-    entity = Alert(
-        slugify(name),
-        name,
-        watched_entity_id,
-        alert_state,
-        repeat_float,
-        skip_first,
-        Template(message_template, hass) if message_template else None,
-        Template(done_message_template, hass) if done_message_template else None,
-        notifiers,
-        can_ack,
-        Template(title_template, hass) if title_template else None,
-        data,
-    )
+    try:
+        entity = Alert(
+            slugify(name),
+            name,
+            watched_entity_id,
+            alert_state,
+            repeat_float,
+            skip_first,
+            Template(message_template, hass) if message_template else None,
+            Template(done_message_template, hass) if done_message_template else None,
+            notifiers,
+            can_ack,
+            Template(title_template, hass) if title_template else None,
+            data,
+        )
+    except Exception as e:
+        _LOGGER.exception("Alert init failed: %s", e)
+        raise
 
     # Issue #3 fix: for config entries, avoid EntityComponent and its deprecated
     # async_remove_entity() method. We add the entity via the shared component (needed
@@ -413,6 +418,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if component is None:
         component = EntityComponent[Alert](_LOGGER, DOMAIN, hass)
         hass.data[f"{DOMAIN}_component"] = component
+        await component.async_setup({})
 
     await component.async_add_entities([entity])
     await _async_setup_alert_services(hass, component)
