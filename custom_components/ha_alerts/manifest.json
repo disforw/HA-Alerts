@@ -9,5 +9,5 @@
   "config_flow": true,
   "iot_class": "local_push",
   "integration_type": "helper",
-  "homeassistant": "2023.1.0"
+  "homeassistant": "2024.6.0"
 }

@@ -145,8 +145,6 @@ async def async_register_management_services(hass: HomeAssistant) -> None:
             CONF_NAME: service_call.data[CONF_NAME],
             CONF_ENTITY_ID: service_call.data[CONF_ENTITY_ID],
             CONF_STATE: service_call.data.get(CONF_STATE, STATE_ON),
-            # Keep as list for internal use; will be converted to single float when
-            # passed to the flow step (NumberSelector expects a single number).
             CONF_REPEAT: service_call.data[CONF_REPEAT],
             CONF_SKIP_FIRST: service_call.data.get(CONF_SKIP_FIRST, DEFAULT_SKIP_FIRST),
             CONF_CAN_ACK: service_call.data.get(CONF_CAN_ACK, DEFAULT_CAN_ACK),
@@ -162,7 +160,6 @@ async def async_register_management_services(hass: HomeAssistant) -> None:
         )
         flow_id = result["flow_id"]
 
-        # Step 1: user — name + entity_id
         await hass.config_entries.flow.async_configure(
             flow_id,
             user_input={
@@ -171,9 +168,6 @@ async def async_register_management_services(hass: HomeAssistant) -> None:
             },
         )
 
-        # Step 2: options — state, repeat, can_acknowledge, skip_first
-        # CONF_REPEAT must be a single number to match the NumberSelector schema.
-        # The service call receives it as a list; take the first element.
         repeat_val = options[CONF_REPEAT]
         if isinstance(repeat_val, list):
             repeat_val = float(repeat_val[0])
@@ -189,7 +183,6 @@ async def async_register_management_services(hass: HomeAssistant) -> None:
             },
         )
 
-        # Step 3: notifier — notifiers + optional message fields
         notifier_input: dict[str, Any] = {CONF_NOTIFIERS: options[CONF_NOTIFIERS]}
         for key in (CONF_ALERT_MESSAGE, CONF_DONE_MESSAGE, CONF_TITLE, CONF_DATA):
             if key in options:
@@ -228,8 +221,6 @@ async def async_register_management_services(hass: HomeAssistant) -> None:
                     if key in service_call.data:
                         val = service_call.data[key]
                         if key == CONF_REPEAT:
-                            # CONF_REPEAT is stored as a single float (matching what
-                            # the NumberSelector UI produces). Convert list→first item.
                             repeat_list = val if isinstance(val, list) else [val]
                             val = float(repeat_list[0])
                         new_options[key] = val
@@ -239,29 +230,18 @@ async def async_register_management_services(hass: HomeAssistant) -> None:
         _LOGGER.warning("ha_alerts.update: entity %s not found", target_entity_id)
 
     hass.services.async_register(
-        DOMAIN,
-        "create",
-        async_handle_create,
-        schema=CREATE_SERVICE_SCHEMA,
+        DOMAIN, "create", async_handle_create, schema=CREATE_SERVICE_SCHEMA,
     )
     hass.services.async_register(
-        DOMAIN,
-        "update",
-        async_handle_update,
-        schema=UPDATE_SERVICE_SCHEMA,
+        DOMAIN, "update", async_handle_update, schema=UPDATE_SERVICE_SCHEMA,
     )
     hass.services.async_register(
-        DOMAIN,
-        "delete",
-        async_handle_delete,
-        schema=DELETE_SERVICE_SCHEMA,
+        DOMAIN, "delete", async_handle_delete, schema=DELETE_SERVICE_SCHEMA,
     )
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the HA Alerts component."""
-    # Always register management services at setup time so they are available
-    # even before any config entries exist.
     await async_register_management_services(hass)
 
     component = EntityComponent[Alert](_LOGGER, DOMAIN, hass)
@@ -314,14 +294,13 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
 
 async def _async_setup_alert_services(
-    hass: HomeAssistant, component: EntityComponent[Alert]
+    hass: HomeAssistant, component: EntityComponent["Alert"]
 ) -> None:
     """Set up turn_on/turn_off/toggle services for alert entities."""
 
     async def async_handle_alert_service(service_call: ServiceCall) -> None:
         """Handle calls to alert services."""
         alert_ids = await service.async_extract_entity_ids(hass, service_call)
-
         for alert in component.entities:
             if alert.entity_id not in alert_ids:
                 continue
@@ -335,22 +314,13 @@ async def _async_setup_alert_services(
 
     if not hass.services.has_service(DOMAIN, SERVICE_TURN_OFF):
         hass.services.async_register(
-            DOMAIN,
-            SERVICE_TURN_OFF,
-            async_handle_alert_service,
-            schema=ALERT_SERVICE_SCHEMA,
+            DOMAIN, SERVICE_TURN_OFF, async_handle_alert_service, schema=ALERT_SERVICE_SCHEMA,
         )
         hass.services.async_register(
-            DOMAIN,
-            SERVICE_TURN_ON,
-            async_handle_alert_service,
-            schema=ALERT_SERVICE_SCHEMA,
+            DOMAIN, SERVICE_TURN_ON, async_handle_alert_service, schema=ALERT_SERVICE_SCHEMA,
         )
         hass.services.async_register(
-            DOMAIN,
-            SERVICE_TOGGLE,
-            async_handle_alert_service,
-            schema=ALERT_SERVICE_SCHEMA,
+            DOMAIN, SERVICE_TOGGLE, async_handle_alert_service, schema=ALERT_SERVICE_SCHEMA,
         )
 
 
@@ -359,8 +329,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     name: str = entry.options[CONF_NAME]
     watched_entity_id: str = entry.options[CONF_ENTITY_ID]
     alert_state: str = entry.options[CONF_STATE]
-    # CONF_REPEAT is stored as a single number (float) by the NumberSelector in the
-    # config flow UI. Wrap it in a list so Alert receives list[float] as expected.
     repeat_raw = entry.options[CONF_REPEAT]
     if isinstance(repeat_raw, list):
         repeat_float = [float(r) for r in repeat_raw]
@@ -373,6 +341,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     can_ack: bool = entry.options[CONF_CAN_ACK]
     title_template: str | None = entry.options.get(CONF_TITLE)
     data: dict[Any, Any] = entry.options.get(CONF_DATA, {})
+
+    await async_register_management_services(hass)
 
     entity = Alert(
         hass,
@@ -390,10 +360,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         data,
     )
 
-    # Add the entity to the component so it appears in the entity registry.
-    component: EntityComponent[Alert] = hass.data.get(DOMAIN)
+    component: EntityComponent[Alert] | None = hass.data.get(DOMAIN)
     if component is None:
-        # Fallback: create component if async_setup wasn't called (e.g., during tests).
         component = EntityComponent[Alert](_LOGGER, DOMAIN, hass)
         hass.data[DOMAIN] = component
 
@@ -409,14 +377,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     component: EntityComponent[Alert] | None = hass.data.get(DOMAIN)
     if component is None:
         return True
-
-    # Remove the entity for this entry from the component.
     entity_id = f"{DOMAIN}.{slugify(entry.options.get(CONF_NAME, ''))}"
     for entity in list(component.entities):
         if entity.entity_id == entity_id:
             await component.async_remove_entity(entity_id)
             break
-
     return True
 
 
@@ -471,9 +436,19 @@ class Alert(ToggleEntity):
         self.entity_id = f"{DOMAIN}.{entity_id}"
         self._attr_unique_id = f"{DOMAIN}_{entity_id}"
 
-        async_track_state_change_event(
+        self._unsub_state_change: Callable[[], None] | None = None
+        self._unsub_state_change = async_track_state_change_event(
             hass, [watched_entity_id], self.watched_entity_change
         )
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Cancel listeners when entity is removed."""
+        if self._unsub_state_change is not None:
+            self._unsub_state_change()
+            self._unsub_state_change = None
+        if self._cancel is not None:
+            self._cancel()
+            self._cancel = None
 
     @final
     @property
@@ -548,7 +523,7 @@ class Alert(ToggleEntity):
 
     async def _notify_done_message(self) -> None:
         """Send notification of complete alert."""
-        _LOGGER.info("Alerting: %s", self._done_message_template)
+        _LOGGER.info("Sending done message for alert: %s", self._attr_name)
         self._send_done_message = False
 
         if self._done_message_template is None:
