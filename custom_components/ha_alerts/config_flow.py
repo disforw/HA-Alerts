@@ -120,15 +120,25 @@ def get_notifier_schema(
     )
 
 
+async def _next_step_options(_: dict) -> str:
+    """Return next step: options."""
+    return "options"
+
+
+async def _next_step_notifier(_: dict) -> str:
+    """Return next step: notifier."""
+    return "notifier"
+
+
 CONFIG_FLOW: dict[str, SchemaFlowFormStep | SchemaFlowMenuStep] = {
     "user": SchemaFlowFormStep(
         CONFIG_SCHEMA,
-        next_step=lambda _: "options",
+        next_step=_next_step_options,
     ),
     "options": SchemaFlowFormStep(
         get_options_schema,
         validate_input,
-        next_step=lambda _: "notifier",
+        next_step=_next_step_notifier,
     ),
     "notifier": SchemaFlowFormStep(
         get_notifier_schema,
@@ -139,7 +149,7 @@ OPTIONS_FLOW: dict[str, SchemaFlowFormStep | SchemaFlowMenuStep] = {
     "init": SchemaFlowFormStep(
         get_options_schema,
         validate_input,
-        next_step=lambda _: "notifier",
+        next_step=_next_step_notifier,
     ),
     "notifier": SchemaFlowFormStep(
         get_notifier_schema,
