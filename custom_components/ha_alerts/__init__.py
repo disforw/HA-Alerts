@@ -14,6 +14,7 @@ from homeassistant.components.notify import (
     ATTR_TITLE,
     DOMAIN as DOMAIN_NOTIFY,
 )
+import homeassistant.config_entries as config_entries_module
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     ATTR_ENTITY_ID,
@@ -82,10 +83,164 @@ CONFIG_SCHEMA = vol.Schema(
 
 ALERT_SERVICE_SCHEMA = vol.Schema({vol.Required(ATTR_ENTITY_ID): cv.entity_ids})
 
+CREATE_SERVICE_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_NAME): cv.string,
+        vol.Required(CONF_ENTITY_ID): cv.entity_id,
+        vol.Optional(CONF_STATE, default=STATE_ON): cv.string,
+        vol.Required(CONF_REPEAT): vol.All(cv.ensure_list, [vol.Coerce(str)]),
+        vol.Optional(CONF_SKIP_FIRST, default=DEFAULT_SKIP_FIRST): cv.boolean,
+        vol.Optional(CONF_CAN_ACK, default=DEFAULT_CAN_ACK): cv.boolean,
+        vol.Required(CONF_NOTIFIERS): vol.All(cv.ensure_list, [cv.string]),
+        vol.Optional(CONF_ALERT_MESSAGE): cv.string,
+        vol.Optional(CONF_DONE_MESSAGE): cv.string,
+        vol.Optional(CONF_TITLE): cv.string,
+        vol.Optional(CONF_DATA): dict,
+    }
+)
+
+UPDATE_SERVICE_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_ENTITY_ID): cv.entity_id,
+        vol.Optional(CONF_STATE): cv.string,
+        vol.Optional(CONF_REPEAT): vol.All(cv.ensure_list, [vol.Coerce(str)]),
+        vol.Optional(CONF_SKIP_FIRST): cv.boolean,
+        vol.Optional(CONF_CAN_ACK): cv.boolean,
+        vol.Optional(CONF_NOTIFIERS): vol.All(cv.ensure_list, [cv.string]),
+        vol.Optional(CONF_ALERT_MESSAGE): cv.string,
+        vol.Optional(CONF_DONE_MESSAGE): cv.string,
+        vol.Optional(CONF_TITLE): cv.string,
+        vol.Optional(CONF_DATA): dict,
+    }
+)
+
+DELETE_SERVICE_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_ENTITY_ID): cv.entity_id,
+    }
+)
+
 
 def is_on(hass: HomeAssistant, entity_id: str) -> bool:
     """Return if the alert is firing and not acknowledged."""
     return hass.states.is_state(entity_id, STATE_ON)
+
+
+def _build_entity_id_from_entry(entry: ConfigEntry) -> str:
+    """Build the expected entity_id for a config entry."""
+    return f"{DOMAIN}.{slugify(entry.options.get(CONF_NAME, ''))}"
+
+
+async def async_register_management_services(hass: HomeAssistant) -> None:
+    """Register create/update/delete services (once only)."""
+    if hass.services.has_service(DOMAIN, "create"):
+        return
+
+    async def async_handle_create(service_call: ServiceCall) -> None:
+        """Create a new HA Alert via service call."""
+        options: dict[str, Any] = {
+            CONF_NAME: service_call.data[CONF_NAME],
+            CONF_ENTITY_ID: service_call.data[CONF_ENTITY_ID],
+            CONF_STATE: service_call.data.get(CONF_STATE, STATE_ON),
+            CONF_REPEAT: [str(r) for r in service_call.data[CONF_REPEAT]],
+            CONF_SKIP_FIRST: service_call.data.get(CONF_SKIP_FIRST, DEFAULT_SKIP_FIRST),
+            CONF_CAN_ACK: service_call.data.get(CONF_CAN_ACK, DEFAULT_CAN_ACK),
+            CONF_NOTIFIERS: service_call.data[CONF_NOTIFIERS],
+        }
+        for key in (CONF_ALERT_MESSAGE, CONF_DONE_MESSAGE, CONF_TITLE, CONF_DATA):
+            if key in service_call.data:
+                options[key] = service_call.data[key]
+
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": config_entries_module.SOURCE_USER},
+        )
+        flow_id = result["flow_id"]
+
+        # Step 1: user — name + entity_id
+        await hass.config_entries.flow.async_configure(
+            flow_id,
+            user_input={
+                CONF_NAME: options[CONF_NAME],
+                CONF_ENTITY_ID: options[CONF_ENTITY_ID],
+            },
+        )
+
+        # Step 2: options — state, repeat, can_acknowledge, skip_first
+        await hass.config_entries.flow.async_configure(
+            flow_id,
+            user_input={
+                CONF_STATE: options[CONF_STATE],
+                CONF_REPEAT: options[CONF_REPEAT],
+                CONF_CAN_ACK: options[CONF_CAN_ACK],
+                CONF_SKIP_FIRST: options[CONF_SKIP_FIRST],
+            },
+        )
+
+        # Step 3: notifier — notifiers + optional message fields
+        notifier_input: dict[str, Any] = {CONF_NOTIFIERS: options[CONF_NOTIFIERS]}
+        for key in (CONF_ALERT_MESSAGE, CONF_DONE_MESSAGE, CONF_TITLE, CONF_DATA):
+            if key in options:
+                notifier_input[key] = options[key]
+        await hass.config_entries.flow.async_configure(
+            flow_id,
+            user_input=notifier_input,
+        )
+
+    async def async_handle_delete(service_call: ServiceCall) -> None:
+        """Delete an HA Alert by entity_id."""
+        target_entity_id = service_call.data[CONF_ENTITY_ID]
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            if _build_entity_id_from_entry(entry) == target_entity_id:
+                await hass.config_entries.async_remove(entry.entry_id)
+                return
+        _LOGGER.warning("ha_alerts.delete: entity %s not found", target_entity_id)
+
+    async def async_handle_update(service_call: ServiceCall) -> None:
+        """Update an existing HA Alert's options."""
+        target_entity_id = service_call.data[CONF_ENTITY_ID]
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            if _build_entity_id_from_entry(entry) == target_entity_id:
+                new_options = dict(entry.options)
+                for key in (
+                    CONF_STATE,
+                    CONF_REPEAT,
+                    CONF_SKIP_FIRST,
+                    CONF_CAN_ACK,
+                    CONF_NOTIFIERS,
+                    CONF_ALERT_MESSAGE,
+                    CONF_DONE_MESSAGE,
+                    CONF_TITLE,
+                    CONF_DATA,
+                ):
+                    if key in service_call.data:
+                        val = service_call.data[key]
+                        if key == CONF_REPEAT:
+                            val = [str(r) for r in val]
+                        new_options[key] = val
+                hass.config_entries.async_update_entry(entry, options=new_options)
+                await hass.config_entries.async_reload(entry.entry_id)
+                return
+        _LOGGER.warning("ha_alerts.update: entity %s not found", target_entity_id)
+
+    hass.services.async_register(
+        DOMAIN,
+        "create",
+        async_handle_create,
+        schema=CREATE_SERVICE_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "update",
+        async_handle_update,
+        schema=UPDATE_SERVICE_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "delete",
+        async_handle_delete,
+        schema=DELETE_SERVICE_SCHEMA,
+    )
 
 
 async def async_setup_services(hass: HomeAssistant, entities: list[Alert]) -> None:
@@ -162,6 +317,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     await async_setup_services(hass, [entity])
+    await async_register_management_services(hass)
     entry.async_on_unload(entry.add_update_listener(update_listener))
     entity.async_write_ha_state()
     return True
@@ -182,6 +338,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     entities: list[Alert] = []
 
     if DOMAIN not in config:
+        await async_register_management_services(hass)
         return True
 
     for object_id, cfg in config[DOMAIN].items():
@@ -222,6 +379,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         return False
 
     await async_setup_services(hass, entities)
+    await async_register_management_services(hass)
 
     for alert in entities:
         alert.async_write_ha_state()
