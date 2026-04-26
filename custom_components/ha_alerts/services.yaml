@@ -1,0 +1,93 @@
+create:
+  fields:
+    name:
+      required: true
+      selector:
+        text:
+    entity_id:
+      required: true
+      selector:
+        entity:
+    state:
+      default: "on"
+      selector:
+        text:
+    repeat:
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 9999
+          unit_of_measurement: minutes
+    skip_first:
+      default: false
+      selector:
+        boolean:
+    can_acknowledge:
+      default: true
+      selector:
+        boolean:
+    notifiers:
+      required: true
+      selector:
+        text:
+          multiple: true
+    message:
+      selector:
+        template:
+    done_message:
+      selector:
+        template:
+    title:
+      selector:
+        template:
+    data:
+      selector:
+        object:
+
+update:
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          domain: ha_alerts
+    state:
+      selector:
+        text:
+    repeat:
+      selector:
+        number:
+          min: 1
+          max: 9999
+          unit_of_measurement: minutes
+    skip_first:
+      selector:
+        boolean:
+    can_acknowledge:
+      selector:
+        boolean:
+    notifiers:
+      selector:
+        text:
+          multiple: true
+    message:
+      selector:
+        template:
+    done_message:
+      selector:
+        template:
+    title:
+      selector:
+        template:
+    data:
+      selector:
+        object:
+
+delete:
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          domain: ha_alerts
