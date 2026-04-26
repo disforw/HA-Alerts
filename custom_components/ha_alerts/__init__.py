@@ -358,6 +358,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # CONF_REPEAT is stored as a single number (float) by the NumberSelector in the
     # config flow UI, or as a list when coming from the service / YAML path.
     # Normalise to list[float] so Alert always receives the same type.
+    # Option A (expert diagnosis): use .get() with DEFAULT_REPEAT fallback, then
+    # coerce scalar → list so downstream code always iterates safely.
     repeat_raw = entry.options.get(CONF_REPEAT, DEFAULT_REPEAT)
     if isinstance(repeat_raw, list):
         repeat_float = [float(r) for r in repeat_raw]
@@ -496,7 +498,11 @@ class Alert(ToggleEntity):
         self._notifiers = notifiers
         self._can_ack = can_ack
 
-        self._delay = [timedelta(minutes=val) for val in repeat]
+        # Option B (expert diagnosis): defensive guard so a scalar repeat value
+        # (e.g. 30.0 from NumberSelector) never causes "float object is not iterable".
+        if not isinstance(repeat, (list, tuple)):
+            repeat = [repeat]
+        self._delay = [timedelta(minutes=float(val)) for val in repeat if val is not None]
         self._next_delay = 0
 
         self._firing = False
