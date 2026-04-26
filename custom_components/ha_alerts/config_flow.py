@@ -6,6 +6,7 @@ from typing import Any, cast
 
 import voluptuous as vol
 
+from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.schema_config_entry_flow import (
     SchemaCommonFlowHandler,
     SchemaConfigFlowHandler,
@@ -179,3 +180,26 @@ class ConfigFlowHandler(SchemaConfigFlowHandler, domain=DOMAIN):
     def async_config_entry_title(self, options: Mapping[str, Any]) -> str:
         """Return config entry title."""
         return cast(str, options[CONF_NAME]) if CONF_NAME in options else ""
+
+    async def async_step_import(self, import_data: dict[str, Any]) -> FlowResult:
+        """Handle import from ha_alerts.create service call.
+
+        Issue #2 fix: the create service now routes through SOURCE_IMPORT instead
+        of driving the 3-step SchemaConfigFlowHandler UI pipeline programmatically.
+        This single step accepts validated service data directly, avoiding the
+        UI-selector validation mismatch and the lack of error handling in the
+        original sequential async_configure() approach.
+        """
+        # Normalise CONF_REPEAT to a single float so it matches what the
+        # NumberSelector UI stores and what async_setup_entry expects.
+        repeat_raw = import_data.get(CONF_REPEAT, [1])
+        if isinstance(repeat_raw, list):
+            import_data[CONF_REPEAT] = float(repeat_raw[0])
+        else:
+            import_data[CONF_REPEAT] = float(repeat_raw)
+
+        return self.async_create_entry(
+            title=import_data.get(CONF_NAME, ""),
+            data={},
+            options=import_data,
+        )
