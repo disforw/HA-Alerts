@@ -6,7 +6,7 @@ from typing import Any, cast
 
 import voluptuous as vol
 
-from homeassistant.config_entries import ConfigFlow
+from homeassistant.config_entries import ConfigFlowResult
 from homeassistant.const import (
     CONF_ENTITY_ID,
     CONF_NAME,
@@ -14,7 +14,7 @@ from homeassistant.const import (
     CONF_STATE,
     STATE_ON,
 )
-from homeassistant.core import async_get_hass, callback
+from homeassistant.core import async_get_hass
 from homeassistant.helpers import selector
 from homeassistant.helpers.schema_config_entry_flow import (
     SchemaCommonFlowHandler,
@@ -186,29 +186,3 @@ class ConfigFlowHandler(SchemaConfigFlowHandler, domain=DOMAIN):
     def async_config_entry_title(self, options: Mapping[str, Any]) -> str:
         """Return config entry title."""
         return cast(str, options["name"]) if "name" in options else ""
-
-    @callback
-    def async_create_entry(
-        self,
-        data: Mapping[str, Any],
-        **kwargs: Any,
-    ):
-        """Finish config flow and create a config entry.
-
-        Explicitly builds the options dict from the common handler's accumulated
-        options so that data from all flow steps (user, options, notifier) is
-        always present in the config entry, regardless of HA version behaviour.
-        """
-        # self._common_handler.options accumulates user_input from every step.
-        # Merge `data` on top (handles both normal and edge-case call paths).
-        options: dict[str, Any] = {**self._common_handler.options, **data}
-        self.async_config_flow_finished(options)
-        # Call ConfigFlow.async_create_entry directly (skip SchemaConfigFlowHandler's
-        # version) so we own the data={} / options=options mapping explicitly.
-        return ConfigFlow.async_create_entry(
-            self,
-            data={},
-            options=options,
-            title=self.async_config_entry_title(options),
-            **kwargs,
-        )
