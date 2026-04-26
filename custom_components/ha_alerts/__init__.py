@@ -382,11 +382,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         alert_state,
         repeat_float,
         skip_first,
-        Template(message_template) if message_template else None,
-        Template(done_message_template) if done_message_template else None,
+        Template(message_template, hass) if message_template else None,
+        Template(done_message_template, hass) if done_message_template else None,
         notifiers,
         can_ack,
-        Template(title_template) if title_template else None,
+        Template(title_template, hass) if title_template else None,
         data,
     )
 
@@ -454,16 +454,8 @@ class Alert(ToggleEntity):
         self._data = data
 
         self._message_template = message_template
-        if self._message_template is not None:
-            self._message_template.hass = hass
-
         self._done_message_template = done_message_template
-        if self._done_message_template is not None:
-            self._done_message_template.hass = hass
-
         self._title_template = title_template
-        if self._title_template is not None:
-            self._title_template.hass = hass
 
         self._notifiers = notifiers
         self._can_ack = can_ack
@@ -475,6 +467,7 @@ class Alert(ToggleEntity):
         self._ack = False
         self._cancel: Callable[[], None] | None = None
         self._send_done_message = False
+        self._context = None
         self.entity_id = f"{DOMAIN}.{entity_id}"
 
         async_track_state_change_event(
