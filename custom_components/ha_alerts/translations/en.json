@@ -91,5 +91,113 @@
     "error": {
       "repeat_error": "Repeat intervals must be whole numbers (e.g. 5, 10, 30)."
     }
+  },
+  "services": {
+    "create": {
+      "name": "Create Alert",
+      "description": "Create a new HA Alert programmatically.",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "description": "A friendly name for the new alert."
+        },
+        "entity_id": {
+          "name": "Entity",
+          "description": "The entity to watch for state changes."
+        },
+        "state": {
+          "name": "Alert State",
+          "description": "The state that triggers the alert (e.g. 'on'). Defaults to 'on'."
+        },
+        "repeat": {
+          "name": "Repeat Intervals",
+          "description": "List of intervals in minutes between repeated notifications."
+        },
+        "skip_first": {
+          "name": "Skip First Notification",
+          "description": "Skip the first notification and only alert after the first repeat interval."
+        },
+        "can_acknowledge": {
+          "name": "Can Acknowledge",
+          "description": "Allow the alert to be acknowledged (silenced) via the entity toggle."
+        },
+        "notifiers": {
+          "name": "Notification Services",
+          "description": "List of notify service names to send alerts through."
+        },
+        "message": {
+          "name": "Message Template",
+          "description": "Optional Jinja2 template for the alert message. Defaults to the alert name."
+        },
+        "done_message": {
+          "name": "Done Message Template",
+          "description": "Optional Jinja2 template for the message sent when the alert condition clears."
+        },
+        "title": {
+          "name": "Title Template",
+          "description": "Optional Jinja2 template for the notification title."
+        },
+        "data": {
+          "name": "Extra Data",
+          "description": "Optional extra data payload to pass to the notification service."
+        }
+      }
+    },
+    "update": {
+      "name": "Update Alert",
+      "description": "Update the options of an existing HA Alert.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity",
+          "description": "The entity_id of the alert to update."
+        },
+        "state": {
+          "name": "Alert State",
+          "description": "The state that triggers the alert (e.g. 'on')."
+        },
+        "repeat": {
+          "name": "Repeat Intervals",
+          "description": "List of intervals in minutes between repeated notifications."
+        },
+        "skip_first": {
+          "name": "Skip First Notification",
+          "description": "Skip the first notification and only alert after the first repeat interval."
+        },
+        "can_acknowledge": {
+          "name": "Can Acknowledge",
+          "description": "Allow the alert to be acknowledged (silenced) via the entity toggle."
+        },
+        "notifiers": {
+          "name": "Notification Services",
+          "description": "List of notify service names to send alerts through."
+        },
+        "message": {
+          "name": "Message Template",
+          "description": "Optional Jinja2 template for the alert message."
+        },
+        "done_message": {
+          "name": "Done Message Template",
+          "description": "Optional Jinja2 template for the message sent when the alert condition clears."
+        },
+        "title": {
+          "name": "Title Template",
+          "description": "Optional Jinja2 template for the notification title."
+        },
+        "data": {
+          "name": "Extra Data",
+          "description": "Optional extra data payload to pass to the notification service."
+        }
+      }
+    },
+    "delete": {
+      "name": "Delete Alert",
+      "description": "Delete an existing HA Alert by its entity_id.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity",
+          "description": "The entity_id of the alert to delete."
+        }
+      }
+    }
   }
 }
