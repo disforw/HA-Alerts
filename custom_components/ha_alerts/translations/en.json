@@ -3,20 +3,27 @@
     "step": {
       "user": {
         "title": "HA Alerts",
-        "description": "Set up a new HA Alert.",
+        "description": "Set up a new HA Alert. You will be able to configure repeat intervals, notification services, and message templates in the following steps.",
         "data": {
           "name": "Name",
-          "entity_id": "Entity",
+          "entity_id": "Entity"
+        },
+        "data_description": {
+          "name": "A friendly name for this alert.",
+          "entity_id": "The entity to watch for state changes."
+        }
+      },
+      "options": {
+        "title": "Alert Options",
+        "data": {
           "state": "Alert State",
-          "repeat": "Repeat Interval (minutes)",
+          "repeat": "Repeat Intervals (minutes)",
           "can_acknowledge": "Can Acknowledge",
           "skip_first": "Skip First Notification"
         },
         "data_description": {
-          "name": "A friendly name for this alert.",
-          "entity_id": "The entity to watch for state changes.",
           "state": "The state that triggers the alert (e.g. 'on').",
-          "repeat": "How often to repeat notifications, in minutes.",
+          "repeat": "How often to repeat notifications (in minutes). Add multiple values for escalating intervals.",
           "can_acknowledge": "Allow the alert to be acknowledged (silenced) via the entity toggle.",
           "skip_first": "Skip the first notification and only alert after the first repeat interval."
         }
@@ -39,6 +46,9 @@
         }
       }
     },
+    "error": {
+      "repeat_error": "Repeat intervals must be whole numbers (e.g. 5, 10, 30)."
+    },
     "abort": {
       "already_configured": "This alert is already configured."
     }
@@ -49,13 +59,13 @@
         "title": "Alert Options",
         "data": {
           "state": "Alert State",
-          "repeat": "Repeat Interval (minutes)",
+          "repeat": "Repeat Intervals (minutes)",
           "can_acknowledge": "Can Acknowledge",
           "skip_first": "Skip First Notification"
         },
         "data_description": {
           "state": "The state that triggers the alert (e.g. 'on').",
-          "repeat": "How often to repeat notifications, in minutes.",
+          "repeat": "How often to repeat notifications (in minutes). Add multiple values for escalating intervals.",
           "can_acknowledge": "Allow the alert to be acknowledged (silenced) via the entity toggle.",
           "skip_first": "Skip the first notification and only alert after the first repeat interval."
         }
@@ -77,6 +87,9 @@
           "data": "Optional extra data payload to pass to the notification service."
         }
       }
+    },
+    "error": {
+      "repeat_error": "Repeat intervals must be whole numbers (e.g. 5, 10, 30)."
     }
   },
   "services": {
@@ -97,8 +110,8 @@
           "description": "The state that triggers the alert (e.g. 'on'). Defaults to 'on'."
         },
         "repeat": {
-          "name": "Repeat Interval",
-          "description": "Interval in minutes between repeated notifications."
+          "name": "Repeat Intervals",
+          "description": "List of intervals in minutes between repeated notifications."
         },
         "skip_first": {
           "name": "Skip First Notification",
@@ -143,8 +156,8 @@
           "description": "The state that triggers the alert (e.g. 'on')."
         },
         "repeat": {
-          "name": "Repeat Interval",
-          "description": "Interval in minutes between repeated notifications."
+          "name": "Repeat Intervals",
+          "description": "List of intervals in minutes between repeated notifications."
         },
         "skip_first": {
           "name": "Skip First Notification",
