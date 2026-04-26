@@ -7,6 +7,5 @@
   "after_dependencies": ["notify"],
   "codeowners": ["@disforw"],
   "config_flow": true,
-  "iot_class": "local_push",
-  "homeassistant": "2023.1.0"
+  "iot_class": "local_push"
 }
