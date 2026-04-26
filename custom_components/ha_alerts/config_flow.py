@@ -6,6 +6,7 @@ from typing import Any, cast
 
 import voluptuous as vol
 
+from homeassistant.config_entries import ConfigFlow
 from homeassistant.const import (
     CONF_ENTITY_ID,
     CONF_NAME,
@@ -13,9 +14,10 @@ from homeassistant.const import (
     CONF_STATE,
     STATE_ON,
 )
-from homeassistant.core import async_get_hass
+from homeassistant.core import async_get_hass, callback
 from homeassistant.helpers import selector
 from homeassistant.helpers.schema_config_entry_flow import (
+    SchemaCommonFlowHandler,
     SchemaConfigFlowHandler,
     SchemaFlowFormStep,
     SchemaFlowMenuStep,
@@ -35,7 +37,7 @@ from .const import (
     DOMAIN,
 )
 
-CONFIG_SCHEMA = vol.Schema(
+USER_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_NAME): selector.TextSelector(),
         vol.Required(CONF_ENTITY_ID): selector.EntitySelector(),
@@ -43,19 +45,18 @@ CONFIG_SCHEMA = vol.Schema(
 )
 
 
-async def _next_step_options(_: dict) -> str:
+async def _next_step_options(options: dict) -> str:
     """Return next step: options."""
     return "options"
 
 
-async def _next_step_notifier(_: dict) -> str:
+async def _next_step_notifier(options: dict) -> str:
     """Return next step: notifier."""
     return "notifier"
 
 
 async def get_options_schema(
-    flow_handler: SchemaConfigFlowHandler,
-    user_input: dict[str, Any] | None = None,
+    handler: SchemaCommonFlowHandler,
 ) -> vol.Schema:
     """Get schema for additional options."""
     # Try to get the entity_id from prior step options so we can offer
@@ -64,7 +65,7 @@ async def get_options_schema(
     state_options: list[selector.SelectOptionDict] = []
 
     try:
-        entity_id = flow_handler.options.get(CONF_ENTITY_ID)
+        entity_id = handler.options.get(CONF_ENTITY_ID)
     except AttributeError:
         pass
 
@@ -122,8 +123,7 @@ async def get_options_schema(
 
 
 async def get_notifier_schema(
-    flow_handler: SchemaConfigFlowHandler,
-    user_input: dict[str, Any] | None = None,
+    handler: SchemaCommonFlowHandler,
 ) -> vol.Schema:
     """Update list with notify services."""
     hass = async_get_hass()
@@ -154,7 +154,7 @@ async def get_notifier_schema(
 
 CONFIG_FLOW: dict[str, SchemaFlowFormStep | SchemaFlowMenuStep] = {
     "user": SchemaFlowFormStep(
-        CONFIG_SCHEMA,
+        USER_SCHEMA,
         next_step=_next_step_options,
     ),
     "options": SchemaFlowFormStep(
@@ -186,3 +186,29 @@ class ConfigFlowHandler(SchemaConfigFlowHandler, domain=DOMAIN):
     def async_config_entry_title(self, options: Mapping[str, Any]) -> str:
         """Return config entry title."""
         return cast(str, options["name"]) if "name" in options else ""
+
+    @callback
+    def async_create_entry(
+        self,
+        data: Mapping[str, Any],
+        **kwargs: Any,
+    ):
+        """Finish config flow and create a config entry.
+
+        Explicitly builds the options dict from the common handler's accumulated
+        options so that data from all flow steps (user, options, notifier) is
+        always present in the config entry, regardless of HA version behaviour.
+        """
+        # self._common_handler.options accumulates user_input from every step.
+        # Merge `data` on top (handles both normal and edge-case call paths).
+        options: dict[str, Any] = {**self._common_handler.options, **data}
+        self.async_config_flow_finished(options)
+        # Call ConfigFlow.async_create_entry directly (skip SchemaConfigFlowHandler's
+        # version) so we own the data={} / options=options mapping explicitly.
+        return ConfigFlow.async_create_entry(
+            self,
+            data={},
+            options=options,
+            title=self.async_config_entry_title(options),
+            **kwargs,
+        )
