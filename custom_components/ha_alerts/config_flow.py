@@ -122,7 +122,7 @@ async def get_notifier_schema(
     """Build schema listing all available notify services."""
     # Use handler.parent_handler.hass — the correct, non-deprecated path.
     hass = handler.parent_handler.hass
-    notify_services = hass.services.async_services().get("notify", {})
+    notify_services = hass.services.async_services_for_domain("notify")
     notify_options = [
         selector.SelectOptionDict(value=key, label=key.replace("_", " ").title())
         for key in sorted(notify_services.keys())
