@@ -13,9 +13,9 @@ from homeassistant.const import (
     CONF_STATE,
     STATE_ON,
 )
-from homeassistant.core import async_get_hass
 from homeassistant.helpers import selector
 from homeassistant.helpers.schema_config_entry_flow import (
+    SchemaCommonFlowHandler,
     SchemaConfigFlowHandler,
     SchemaFlowError,
     SchemaFlowFormStep,
@@ -53,16 +53,23 @@ async def _next_step_notifier(_: dict) -> str:
     return "notifier"
 
 
-def validate_input(user_input: dict[str, Any]) -> dict[str, Any]:
-    """Validate user input."""
+async def validate_input(
+    handler: SchemaCommonFlowHandler, user_input: dict[str, Any]
+) -> dict[str, Any]:
+    """Validate user input for repeat intervals.
+
+    Must be async and accept (handler, user_input) — called by SchemaCommonFlowHandler
+    as: user_input = await form_step.validate_user_input(self, user_input)
+    """
     try:
         number_list = []
-        if isinstance(user_input[CONF_REPEAT], list):
-            for number_string in user_input[CONF_REPEAT]:
+        repeat_val = user_input[CONF_REPEAT]
+        if isinstance(repeat_val, list):
+            for number_string in repeat_val:
                 new_number = str(int(number_string))
                 number_list.append(new_number)
-        if isinstance(user_input[CONF_REPEAT], str):
-            new_number = str(int(user_input[CONF_REPEAT]))
+        elif isinstance(repeat_val, str):
+            new_number = str(int(repeat_val))
             number_list.append(new_number)
     except ValueError as error:
         raise SchemaFlowError("repeat_error") from error
@@ -71,11 +78,12 @@ def validate_input(user_input: dict[str, Any]) -> dict[str, Any]:
     return user_input
 
 
-async def get_options_schema(
-    flow_handler: SchemaConfigFlowHandler,
-    user_input: dict[str, Any] | None = None,
-) -> vol.Schema:
-    """Get schema for additional options."""
+async def get_options_schema(handler: SchemaCommonFlowHandler) -> vol.Schema:
+    """Get schema for additional options.
+
+    Must be async and accept exactly one argument (SchemaCommonFlowHandler).
+    Called by SchemaCommonFlowHandler._get_schema as: await form_step.schema(self)
+    """
     return vol.Schema(
         {
             vol.Required(CONF_STATE, default=STATE_ON): selector.TextSelector(),
@@ -97,12 +105,13 @@ async def get_options_schema(
     )
 
 
-async def get_notifier_schema(
-    flow_handler: SchemaConfigFlowHandler,
-    user_input: dict[str, Any] | None = None,
-) -> vol.Schema:
-    """Update list with notify services."""
-    hass = async_get_hass()
+async def get_notifier_schema(handler: SchemaCommonFlowHandler) -> vol.Schema:
+    """Get schema for notification options.
+
+    Must be async and accept exactly one argument (SchemaCommonFlowHandler).
+    Called by SchemaCommonFlowHandler._get_schema as: await form_step.schema(self)
+    """
+    hass = handler.parent_handler.hass
     all_services = hass.services.async_services()
     notify_services = all_services.get("notify", {})
     notify_keys = list(notify_services.keys())
@@ -130,27 +139,27 @@ async def get_notifier_schema(
 
 CONFIG_FLOW: dict[str, SchemaFlowFormStep | SchemaFlowMenuStep] = {
     "user": SchemaFlowFormStep(
-        CONFIG_SCHEMA,
+        schema=CONFIG_SCHEMA,
         next_step=_next_step_options,
     ),
     "options": SchemaFlowFormStep(
-        get_options_schema,
-        validate_input,
+        schema=get_options_schema,
+        validate_user_input=validate_input,
         next_step=_next_step_notifier,
     ),
     "notifier": SchemaFlowFormStep(
-        get_notifier_schema,
+        schema=get_notifier_schema,
     ),
 }
 
 OPTIONS_FLOW: dict[str, SchemaFlowFormStep | SchemaFlowMenuStep] = {
     "init": SchemaFlowFormStep(
-        get_options_schema,
-        validate_input,
+        schema=get_options_schema,
+        validate_user_input=validate_input,
         next_step=_next_step_notifier,
     ),
     "notifier": SchemaFlowFormStep(
-        get_notifier_schema,
+        schema=get_notifier_schema,
     ),
 }
 
