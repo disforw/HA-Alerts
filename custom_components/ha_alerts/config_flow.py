@@ -6,6 +6,8 @@ from typing import Any, cast
 
 import voluptuous as vol
 
+from homeassistant.config_entries import ConfigFlow
+from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.schema_config_entry_flow import (
     SchemaCommonFlowHandler,
@@ -181,6 +183,33 @@ class ConfigFlowHandler(SchemaConfigFlowHandler, domain=DOMAIN):
         """Return config entry title."""
         return cast(str, options[CONF_NAME]) if CONF_NAME in options else ""
 
+    @callback
+    def async_create_entry(
+        self,
+        data: Mapping[str, Any],
+        **kwargs: Any,
+    ) -> FlowResult:
+        """Override entry creation to ensure all step data ends up in entry.options.
+
+        SchemaConfigFlowHandler calls this with data=<all accumulated step data>.
+        We explicitly bypass SchemaConfigFlowHandler.async_create_entry to avoid
+        its **kwargs forwarding, which causes duplicate-kwarg TypeErrors when
+        async_step_import (or any caller) already passes title/options explicitly.
+
+        By overriding here we guarantee that regardless of the call path:
+          - entry.data  = {} (nothing sensitive in data)
+          - entry.options = all step data, including CONF_NAME and CONF_ENTITY_ID
+            collected in the 'user' step, plus CONF_STATE/CONF_REPEAT/etc. from
+            'options', plus CONF_NOTIFIERS from 'notifier'
+        """
+        self.async_config_flow_finished(data)
+        return ConfigFlow.async_create_entry(
+            self,
+            title=self.async_config_entry_title(data),
+            data={},
+            options=dict(data),
+        )
+
     async def async_step_import(self, import_data: dict[str, Any]) -> FlowResult:
         """Handle import from ha_alerts.create service call.
 
@@ -198,8 +227,6 @@ class ConfigFlowHandler(SchemaConfigFlowHandler, domain=DOMAIN):
         else:
             import_data[CONF_REPEAT] = float(repeat_raw)
 
-        return self.async_create_entry(
-            title=import_data.get(CONF_NAME, ""),
-            data={},
-            options=import_data,
-        )
+        # Pass data=import_data so our async_create_entry override receives all
+        # fields and routes them to entry.options correctly.
+        return self.async_create_entry(data=import_data)
