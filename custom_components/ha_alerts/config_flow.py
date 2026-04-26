@@ -71,7 +71,7 @@ def validate_input(user_input: dict[str, Any]) -> dict[str, Any]:
     return user_input
 
 
-def get_options_schema(
+async def get_options_schema(
     flow_handler: SchemaConfigFlowHandler,
     user_input: dict[str, Any] | None = None,
 ) -> vol.Schema:
@@ -97,7 +97,7 @@ def get_options_schema(
     )
 
 
-def get_notifier_schema(
+async def get_notifier_schema(
     flow_handler: SchemaConfigFlowHandler,
     user_input: dict[str, Any] | None = None,
 ) -> vol.Schema:
@@ -105,9 +105,7 @@ def get_notifier_schema(
     hass = async_get_hass()
     all_services = hass.services.async_services()
     notify_services = all_services.get("notify", {})
-    notify_keys = []
-    for key in notify_services.keys():
-        notify_keys.append(key)
+    notify_keys = list(notify_services.keys())
 
     notify_options = [
         selector.SelectOptionDict(value=key, label=key.replace("_", " ").title())
