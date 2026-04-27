@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import timedelta
+from datetime import datetime, timedelta
 import logging
 from typing import Any, final
 
@@ -22,8 +22,6 @@ from homeassistant.const import (
     CONF_REPEAT,
     CONF_STATE,
     Platform,
-    STATE_IDLE,
-    STATE_OFF,
     STATE_ON,
 )
 from homeassistant.core import Event, HomeAssistant, ServiceCall
@@ -40,13 +38,11 @@ from homeassistant.util.dt import now
 
 from .const import (
     CONF_ALERT_MESSAGE,
-    CONF_CAN_ACK,
     CONF_DATA,
     CONF_DONE_MESSAGE,
     CONF_NOTIFIERS,
     CONF_SKIP_FIRST,
     CONF_TITLE,
-    DEFAULT_CAN_ACK,
     DEFAULT_REPEAT,
     DEFAULT_SKIP_FIRST,
     DOMAIN,
@@ -64,7 +60,6 @@ ALERT_SCHEMA = vol.Schema(
             [vol.Coerce(float)],
             [vol.Range(min=0.016)],
         ),
-        vol.Required(CONF_CAN_ACK, default=DEFAULT_CAN_ACK): cv.boolean,
         vol.Required(CONF_SKIP_FIRST, default=DEFAULT_SKIP_FIRST): cv.boolean,
         vol.Optional(CONF_ALERT_MESSAGE): cv.template,
         vol.Optional(CONF_DONE_MESSAGE): cv.template,
@@ -85,7 +80,6 @@ CREATE_SERVICE_SCHEMA = vol.Schema(
         vol.Optional(CONF_STATE, default=STATE_ON): cv.string,
         vol.Required(CONF_REPEAT): vol.All(cv.ensure_list, [vol.Coerce(str)]),
         vol.Optional(CONF_SKIP_FIRST, default=DEFAULT_SKIP_FIRST): cv.boolean,
-        vol.Optional(CONF_CAN_ACK, default=DEFAULT_CAN_ACK): cv.boolean,
         vol.Required(CONF_NOTIFIERS): vol.All(cv.ensure_list, [cv.string]),
         vol.Optional(CONF_ALERT_MESSAGE): cv.string,
         vol.Optional(CONF_DONE_MESSAGE): cv.string,
@@ -100,7 +94,6 @@ UPDATE_SERVICE_SCHEMA = vol.Schema(
         vol.Optional(CONF_STATE): cv.string,
         vol.Optional(CONF_REPEAT): vol.All(cv.ensure_list, [vol.Coerce(str)]),
         vol.Optional(CONF_SKIP_FIRST): cv.boolean,
-        vol.Optional(CONF_CAN_ACK): cv.boolean,
         vol.Optional(CONF_NOTIFIERS): vol.All(cv.ensure_list, [cv.string]),
         vol.Optional(CONF_ALERT_MESSAGE): cv.string,
         vol.Optional(CONF_DONE_MESSAGE): cv.string,
@@ -117,7 +110,7 @@ DELETE_SERVICE_SCHEMA = vol.Schema(
 
 
 def is_on(hass: HomeAssistant, entity_id: str) -> bool:
-    """Return if the alert is firing and not acknowledged."""
+    """Return if the alert is armed."""
     return hass.states.is_state(entity_id, STATE_ON)
 
 
@@ -132,18 +125,13 @@ async def async_register_management_services(hass: HomeAssistant) -> None:
         return
 
     async def async_handle_create(service_call: ServiceCall) -> None:
-        """Create a new HA Alert via service call.
-
-        Issue #2 fix: use SOURCE_IMPORT to invoke a dedicated flow step that
-        accepts raw data directly, bypassing the UI selector pipeline.
-        """
+        """Create a new HA Alert via service call (SOURCE_IMPORT path)."""
         options: dict[str, Any] = {
             CONF_NAME: service_call.data[CONF_NAME],
             CONF_ENTITY_ID: service_call.data[CONF_ENTITY_ID],
             CONF_STATE: service_call.data.get(CONF_STATE, STATE_ON),
             CONF_REPEAT: service_call.data[CONF_REPEAT],
             CONF_SKIP_FIRST: service_call.data.get(CONF_SKIP_FIRST, DEFAULT_SKIP_FIRST),
-            CONF_CAN_ACK: service_call.data.get(CONF_CAN_ACK, DEFAULT_CAN_ACK),
             CONF_NOTIFIERS: service_call.data[CONF_NOTIFIERS],
         }
         for key in (CONF_ALERT_MESSAGE, CONF_DONE_MESSAGE, CONF_TITLE, CONF_DATA):
@@ -175,11 +163,7 @@ async def async_register_management_services(hass: HomeAssistant) -> None:
         _LOGGER.warning("ha_alerts.delete: entity %s not found", target_entity_id)
 
     async def async_handle_update(service_call: ServiceCall) -> None:
-        """Update an existing HA Alert's options in-place.
-
-        Issue #5 fix: update the live entity directly without triggering a reload,
-        preserving any active-firing state.
-        """
+        """Update an existing HA Alert's options in-place (Issue #5 fix)."""
         target_entity_id = service_call.data[CONF_ENTITY_ID]
         for entry in hass.config_entries.async_entries(DOMAIN):
             if _build_entity_id_from_entry(entry) == target_entity_id:
@@ -188,7 +172,6 @@ async def async_register_management_services(hass: HomeAssistant) -> None:
                     CONF_STATE,
                     CONF_REPEAT,
                     CONF_SKIP_FIRST,
-                    CONF_CAN_ACK,
                     CONF_NOTIFIERS,
                     CONF_ALERT_MESSAGE,
                     CONF_DONE_MESSAGE,
@@ -250,7 +233,15 @@ async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 
 class Alert(ToggleEntity):
-    """Representation of an alert."""
+    """Representation of an HA Alert.
+
+    Toggle semantics:
+      on  = armed   — watching the entity, will fire and send notifications
+      off = disarmed — silent, not watching, no notifications
+
+    Disarming while firing is a hard stop (Option A): cancels all pending
+    notifications and clears firing state. No done message is sent.
+    """
 
     _attr_should_poll = False
 
@@ -265,7 +256,6 @@ class Alert(ToggleEntity):
         message_template: Template | None,
         done_message_template: Template | None,
         notifiers: list[str],
-        can_ack: bool,
         title_template: Template | None,
         data: dict[Any, Any],
     ) -> None:
@@ -283,17 +273,17 @@ class Alert(ToggleEntity):
         self._title_template = title_template
 
         self._notifiers = notifiers
-        self._can_ack = can_ack
 
         if not isinstance(repeat, (list, tuple)):
             repeat = [repeat]
         self._delay = [timedelta(minutes=float(val)) for val in repeat if val is not None]
         self._next_delay = 0
 
+        self._armed = True   # armed by default on creation
         self._firing = False
-        self._ack = False
         self._cancel: Callable[[], None] | None = None
         self._send_done_message = False
+        self._last_triggered: datetime | None = None
 
         self._watched_entity_id = watched_entity_id
         self._unsub_state_change: Callable[[], None] | None = None
@@ -304,18 +294,28 @@ class Alert(ToggleEntity):
 
     async def async_added_to_hass(self) -> None:
         """Register state-change listener once entity is part of HA."""
+        self._start_watching()
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Cancel all listeners when the entity is being removed."""
+        self._stop_watching()
+        if self._cancel is not None:
+            self._cancel()
+            self._cancel = None
+
+    def _start_watching(self) -> None:
+        """Subscribe to state changes on the watched entity."""
+        if self._unsub_state_change is not None:
+            return
         self._unsub_state_change = async_track_state_change_event(
             self.hass, [self._watched_entity_id], self.watched_entity_change
         )
 
-    async def async_will_remove_from_hass(self) -> None:
-        """Cancel all listeners when the entity is being removed."""
+    def _stop_watching(self) -> None:
+        """Unsubscribe from state changes."""
         if self._unsub_state_change is not None:
             self._unsub_state_change()
             self._unsub_state_change = None
-        if self._cancel is not None:
-            self._cancel()
-            self._cancel = None
 
     # ------------------------------------------------------------------
     # Options hot-update (Issue #5 fix)
@@ -325,7 +325,6 @@ class Alert(ToggleEntity):
         """Apply updated config-entry options to this live entity in-place."""
         self._alert_state = options.get(CONF_STATE, self._alert_state)
         self._skip_first = options.get(CONF_SKIP_FIRST, self._skip_first)
-        self._can_ack = options.get(CONF_CAN_ACK, self._can_ack)
         self._notifiers = options.get(CONF_NOTIFIERS, self._notifiers)
         self._data = options.get(CONF_DATA, self._data)
 
@@ -347,18 +346,67 @@ class Alert(ToggleEntity):
         self._title_template = Template(title_raw, hass) if title_raw else None
 
     # ------------------------------------------------------------------
-    # State
+    # State & attributes
     # ------------------------------------------------------------------
 
-    @final
     @property
-    def state(self) -> str:
-        """Return the alert status."""
+    def is_on(self) -> bool:
+        """Return True when the alert is armed."""
+        return self._armed
+
+    @property
+    def icon(self) -> str:
+        """Return icon based on armed/firing state."""
+        if not self._armed:
+            return "mdi:bell-off"
         if self._firing:
-            if self._ack:
-                return STATE_OFF
-            return STATE_ON
-        return STATE_IDLE
+            return "mdi:bell-alert"
+        return "mdi:bell"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return extra state attributes."""
+        return {
+            "firing": self._firing,
+            "last_triggered": self._last_triggered.isoformat() if self._last_triggered else None,
+        }
+
+    # ------------------------------------------------------------------
+    # Arm / disarm (turn_on / turn_off)
+    # ------------------------------------------------------------------
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Arm the alert — start watching and check current state."""
+        if self._armed:
+            return
+        _LOGGER.debug("Arming alert: %s", self._attr_name)
+        self._armed = True
+        self._start_watching()
+
+        # Check immediately — if condition already met, begin alerting.
+        current = self.hass.states.get(self._watched_entity_id)
+        if current is not None and current.state == self._alert_state and not self._firing:
+            await self.begin_alerting()
+
+        self.async_write_ha_state()
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Disarm the alert — hard stop, cancel everything."""
+        if not self._armed:
+            return
+        _LOGGER.debug("Disarming alert: %s", self._attr_name)
+        self._armed = False
+        self._stop_watching()
+
+        # Hard stop — cancel pending notifications, clear firing state.
+        if self._cancel is not None:
+            self._cancel()
+            self._cancel = None
+        self._firing = False
+        self._send_done_message = False
+        self._next_delay = 0
+
+        self.async_write_ha_state()
 
     # ------------------------------------------------------------------
     # Alert logic
@@ -366,6 +414,8 @@ class Alert(ToggleEntity):
 
     async def watched_entity_change(self, event: Event) -> None:
         """Determine if the alert should start or stop."""
+        if not self._armed:
+            return
         if (to_state := event.data.get("new_state")) is None:
             return
         _LOGGER.debug("Watched entity (%s) has changed", event.data.get("entity_id"))
@@ -377,9 +427,9 @@ class Alert(ToggleEntity):
     async def begin_alerting(self) -> None:
         """Begin the alert procedures."""
         _LOGGER.debug("Beginning Alert: %s", self._attr_name)
-        self._ack = False
         self._firing = True
         self._next_delay = 0
+        self._last_triggered = now()
 
         if not self._skip_first:
             await self._notify()
@@ -395,7 +445,6 @@ class Alert(ToggleEntity):
             self._cancel()
             self._cancel = None
 
-        self._ack = False
         self._firing = False
         if self._send_done_message:
             await self._notify_done_message()
@@ -410,19 +459,18 @@ class Alert(ToggleEntity):
 
     async def _notify(self, *args: Any) -> None:
         """Send the alert notification."""
-        if not self._firing:
+        if not self._firing or not self._armed:
             return
 
-        if not self._ack:
-            _LOGGER.info("Alerting: %s", self._attr_name)
-            self._send_done_message = True
+        _LOGGER.info("Alerting: %s", self._attr_name)
+        self._send_done_message = True
 
-            if self._message_template is not None:
-                message = self._message_template.async_render(parse_result=False)
-            else:
-                message = self._attr_name
+        if self._message_template is not None:
+            message = self._message_template.async_render(parse_result=False)
+        else:
+            message = self._attr_name
 
-            await self._send_notification_message(message)
+        await self._send_notification_message(message)
         await self._schedule_notify()
 
     async def _notify_done_message(self) -> None:
@@ -452,25 +500,3 @@ class Alert(ToggleEntity):
             await self.hass.services.async_call(
                 DOMAIN_NOTIFY, target, msg_payload
             )
-
-    # ------------------------------------------------------------------
-    # Service handlers
-    # ------------------------------------------------------------------
-
-    async def async_turn_on(self, **kwargs: Any) -> None:
-        """Async Unacknowledge alert."""
-        _LOGGER.debug("Reset Alert: %s", self._attr_name)
-        self._ack = False
-        self.async_write_ha_state()
-
-    async def async_turn_off(self, **kwargs: Any) -> None:
-        """Async Acknowledge alert."""
-        _LOGGER.debug("Acknowledged Alert: %s", self._attr_name)
-        self._ack = True
-        self.async_write_ha_state()
-
-    async def async_toggle(self, **kwargs: Any) -> None:
-        """Async toggle alert."""
-        if self._ack:
-            return await self.async_turn_on()
-        return await self.async_turn_off()

@@ -10,13 +10,9 @@ from homeassistant.const import (
     CONF_NAME,
     CONF_REPEAT,
     CONF_STATE,
-    SERVICE_TOGGLE,
-    SERVICE_TURN_OFF,
-    SERVICE_TURN_ON,
     STATE_ON,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import service
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.template import Template
 from homeassistant.util import slugify
@@ -24,21 +20,17 @@ from homeassistant.util import slugify
 from . import Alert, _build_entity_id_from_entry, update_listener
 from .const import (
     CONF_ALERT_MESSAGE,
-    CONF_CAN_ACK,
     CONF_DATA,
     CONF_DONE_MESSAGE,
     CONF_NOTIFIERS,
     CONF_SKIP_FIRST,
     CONF_TITLE,
-    DEFAULT_CAN_ACK,
     DEFAULT_REPEAT,
     DEFAULT_SKIP_FIRST,
     DOMAIN,
 )
 
 _LOGGER = logging.getLogger(__name__)
-
-ALERT_SERVICE_SCHEMA_ENTITY = None  # turn_on/off/toggle use platform entity services
 
 
 async def async_setup_entry(
@@ -58,7 +50,6 @@ async def async_setup_entry(
         repeat_float = [float(repeat_raw)]
 
     skip_first: bool = entry.options.get(CONF_SKIP_FIRST, DEFAULT_SKIP_FIRST)
-    can_ack: bool = entry.options.get(CONF_CAN_ACK, DEFAULT_CAN_ACK)
     notifiers: list[str] = entry.options.get(CONF_NOTIFIERS, [])
     data: dict[str, Any] = entry.options.get(CONF_DATA, {})
 
@@ -86,7 +77,6 @@ async def async_setup_entry(
         Template(message_raw, hass) if message_raw else None,
         Template(done_message_raw, hass) if done_message_raw else None,
         notifiers,
-        can_ack,
         Template(title_raw, hass) if title_raw else None,
         data,
     )

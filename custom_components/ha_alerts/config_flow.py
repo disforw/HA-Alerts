@@ -23,13 +23,11 @@ from homeassistant.helpers.schema_config_entry_flow import (
 
 from .const import (
     CONF_ALERT_MESSAGE,
-    CONF_CAN_ACK,
     CONF_DATA,
     CONF_DONE_MESSAGE,
     CONF_NOTIFIERS,
     CONF_SKIP_FIRST,
     CONF_TITLE,
-    DEFAULT_CAN_ACK,
     DEFAULT_REPEAT,
     DEFAULT_SKIP_FIRST,
     DOMAIN,
@@ -39,11 +37,7 @@ from .const import (
 async def get_user_schema(
     handler: SchemaCommonFlowHandler,
 ) -> vol.Schema:
-    """Build schema for step 1: name, entity_id, state, repeat, can_ack, skip_first.
-
-    Tries to offer a dropdown of real state values for the watched entity.
-    Falls back to a free-text field when the entity is unknown.
-    """
+    """Build schema for step 1: name, entity_id, state, repeat, skip_first."""
     hass = handler.parent_handler.hass
 
     entity_id: str | None = handler.options.get(CONF_ENTITY_ID)
@@ -91,9 +85,6 @@ async def get_user_schema(
                 )
             ),
             vol.Required(
-                CONF_CAN_ACK, default=DEFAULT_CAN_ACK
-            ): selector.BooleanSelector(),
-            vol.Required(
                 CONF_SKIP_FIRST, default=DEFAULT_SKIP_FIRST
             ): selector.BooleanSelector(),
         }
@@ -103,11 +94,7 @@ async def get_user_schema(
 async def get_options_schema(
     handler: SchemaCommonFlowHandler,
 ) -> vol.Schema:
-    """Get schema for alert options (used in OPTIONS_FLOW init step).
-
-    Tries to offer a dropdown of real state values for the watched entity.
-    Falls back to a free-text field when the entity is unknown.
-    """
+    """Get schema for the options flow init step."""
     hass = handler.parent_handler.hass
 
     entity_id: str | None = handler.options.get(CONF_ENTITY_ID)
@@ -152,9 +139,6 @@ async def get_options_schema(
                     unit_of_measurement="minutes",
                 )
             ),
-            vol.Required(
-                CONF_CAN_ACK, default=DEFAULT_CAN_ACK
-            ): selector.BooleanSelector(),
             vol.Required(
                 CONF_SKIP_FIRST, default=DEFAULT_SKIP_FIRST
             ): selector.BooleanSelector(),
@@ -223,8 +207,6 @@ class ConfigFlowHandler(SchemaConfigFlowHandler, domain=DOMAIN):
 
     async def async_step_import(self, import_data: dict[str, Any]) -> Any:
         """Handle import from ha_alerts.create service call."""
-        # Normalise CONF_REPEAT to a single float so it matches what the
-        # NumberSelector UI stores and what async_setup_entry expects.
         repeat_raw = import_data.get(CONF_REPEAT, [1])
         if isinstance(repeat_raw, list):
             import_data[CONF_REPEAT] = float(repeat_raw[0])
