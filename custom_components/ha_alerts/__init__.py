@@ -78,7 +78,7 @@ CREATE_SERVICE_SCHEMA = vol.Schema(
         vol.Required(CONF_NAME): cv.string,
         vol.Required(CONF_ENTITY_ID): cv.entity_id,
         vol.Optional(CONF_STATE, default=STATE_ON): cv.string,
-        vol.Required(CONF_REPEAT): vol.All(cv.ensure_list, [vol.Coerce(str)]),
+        vol.Required(CONF_REPEAT): vol.Any(vol.All(cv.ensure_list, [vol.Coerce(float)]), vol.Coerce(float)),
         vol.Optional(CONF_SKIP_FIRST, default=DEFAULT_SKIP_FIRST): cv.boolean,
         vol.Required(CONF_NOTIFIERS): vol.All(cv.ensure_list, [cv.string]),
         vol.Optional(CONF_ALERT_MESSAGE): cv.string,
@@ -92,7 +92,7 @@ UPDATE_SERVICE_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_ENTITY_ID): cv.entity_id,
         vol.Optional(CONF_STATE): cv.string,
-        vol.Optional(CONF_REPEAT): vol.All(cv.ensure_list, [vol.Coerce(str)]),
+        vol.Optional(CONF_REPEAT): vol.Any(vol.All(cv.ensure_list, [vol.Coerce(float)]), vol.Coerce(float)),
         vol.Optional(CONF_SKIP_FIRST): cv.boolean,
         vol.Optional(CONF_NOTIFIERS): vol.All(cv.ensure_list, [cv.string]),
         vol.Optional(CONF_ALERT_MESSAGE): cv.string,

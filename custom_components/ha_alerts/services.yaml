@@ -14,17 +14,15 @@ create:
         text:
     repeat:
       required: true
+      example: "30"
       selector:
         number:
           min: 1
           max: 9999
+          step: 1
           unit_of_measurement: minutes
     skip_first:
       default: false
-      selector:
-        boolean:
-    can_acknowledge:
-      default: true
       selector:
         boolean:
     notifiers:
@@ -56,15 +54,14 @@ update:
       selector:
         text:
     repeat:
+      example: "30"
       selector:
         number:
           min: 1
           max: 9999
+          step: 1
           unit_of_measurement: minutes
     skip_first:
-      selector:
-        boolean:
-    can_acknowledge:
       selector:
         boolean:
     notifiers:
