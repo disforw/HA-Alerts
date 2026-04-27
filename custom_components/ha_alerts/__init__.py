@@ -21,17 +21,13 @@ from homeassistant.const import (
     CONF_NAME,
     CONF_REPEAT,
     CONF_STATE,
-    SERVICE_TOGGLE,
-    SERVICE_TURN_OFF,
-    SERVICE_TURN_ON,
+    Platform,
     STATE_IDLE,
     STATE_OFF,
     STATE_ON,
 )
 from homeassistant.core import Event, HomeAssistant, ServiceCall
-from homeassistant.helpers import service
 from homeassistant.helpers.entity import ToggleEntity
-from homeassistant.helpers.entity_component import EntityComponent
 from homeassistant.helpers.event import (
     async_track_point_in_time,
     async_track_state_change_event,
@@ -58,8 +54,6 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-# SCAN_INTERVAL removed — Alert._attr_should_poll = False makes it unused. (Issue #6)
-
 ALERT_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_NAME): cv.string,
@@ -83,8 +77,6 @@ ALERT_SCHEMA = vol.Schema(
 CONFIG_SCHEMA = vol.Schema(
     {DOMAIN: cv.schema_with_slug_keys(ALERT_SCHEMA)}, extra=vol.ALLOW_EXTRA
 )
-
-ALERT_SERVICE_SCHEMA = vol.Schema({vol.Required(ATTR_ENTITY_ID): cv.entity_ids})
 
 CREATE_SERVICE_SCHEMA = vol.Schema(
     {
@@ -142,10 +134,8 @@ async def async_register_management_services(hass: HomeAssistant) -> None:
     async def async_handle_create(service_call: ServiceCall) -> None:
         """Create a new HA Alert via service call.
 
-        Issue #2 fix: instead of driving the multi-step SchemaConfigFlowHandler
-        programmatically (which validates against UI selectors and offers no error
-        handling), we use SOURCE_IMPORT to invoke a single dedicated flow step that
-        accepts raw data directly, bypassing the UI selector pipeline entirely.
+        Issue #2 fix: use SOURCE_IMPORT to invoke a dedicated flow step that
+        accepts raw data directly, bypassing the UI selector pipeline.
         """
         options: dict[str, Any] = {
             CONF_NAME: service_call.data[CONF_NAME],
@@ -187,10 +177,8 @@ async def async_register_management_services(hass: HomeAssistant) -> None:
     async def async_handle_update(service_call: ServiceCall) -> None:
         """Update an existing HA Alert's options in-place.
 
-        Issue #5 fix: rather than triggering a full config entry reload (which
-        destroys and recreates the entity, losing any active-firing state), we
-        update the entity's runtime attributes directly and persist the new options
-        via async_update_entry without reloading.
+        Issue #5 fix: update the live entity directly without triggering a reload,
+        preserving any active-firing state.
         """
         target_entity_id = service_call.data[CONF_ENTITY_ID]
         for entry in hass.config_entries.async_entries(DOMAIN):
@@ -210,12 +198,8 @@ async def async_register_management_services(hass: HomeAssistant) -> None:
                     if key in service_call.data:
                         new_options[key] = service_call.data[key]
 
-                # Persist new options (without triggering a reload via update_listener).
-                # We use skip_update_listeners=True so the listener doesn't reload the
-                # entry; instead we apply the changes directly to the live entity below.
                 hass.config_entries.async_update_entry(entry, options=new_options)
 
-                # Apply changes to the live entity in-place, preserving firing state.
                 entity: Alert | None = hass.data.get(DOMAIN, {}).get(entry.entry_id)
                 if entity is not None:
                     entity.apply_options(new_options, hass)
@@ -224,245 +208,44 @@ async def async_register_management_services(hass: HomeAssistant) -> None:
         _LOGGER.warning("ha_alerts.update: entity %s not found", target_entity_id)
 
     hass.services.async_register(
-        DOMAIN,
-        "create",
-        async_handle_create,
-        schema=CREATE_SERVICE_SCHEMA,
+        DOMAIN, "create", async_handle_create, schema=CREATE_SERVICE_SCHEMA
     )
     hass.services.async_register(
-        DOMAIN,
-        "update",
-        async_handle_update,
-        schema=UPDATE_SERVICE_SCHEMA,
+        DOMAIN, "update", async_handle_update, schema=UPDATE_SERVICE_SCHEMA
     )
     hass.services.async_register(
-        DOMAIN,
-        "delete",
-        async_handle_delete,
-        schema=DELETE_SERVICE_SCHEMA,
+        DOMAIN, "delete", async_handle_delete, schema=DELETE_SERVICE_SCHEMA
     )
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Set up the HA Alerts component."""
-    # Always register management services at setup time so they are available
-    # even before any config entries exist.
+    """Set up the HA Alerts component (YAML path)."""
     await async_register_management_services(hass)
 
-    # hass.data[DOMAIN] is a dict: {entry_id: Alert, ...}
-    # For YAML-loaded entities (no entry_id) we use the object_id as key.
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = {}
-
-    component = EntityComponent[Alert](_LOGGER, DOMAIN, hass)
-    hass.data[f"{DOMAIN}_component"] = component
-    await component.async_setup({})
-
-    if DOMAIN not in config:
-        return True
-
-    entities: list[Alert] = []
-
-    for object_id, cfg in config[DOMAIN].items():
-        if not cfg:
-            cfg = {}
-
-        name = cfg[CONF_NAME]
-        watched_entity_id = cfg[CONF_ENTITY_ID]
-        alert_state = cfg[CONF_STATE]
-        repeat = cfg[CONF_REPEAT]
-        skip_first = cfg[CONF_SKIP_FIRST]
-        message_template = cfg.get(CONF_ALERT_MESSAGE)
-        done_message_template = cfg.get(CONF_DONE_MESSAGE)
-        notifiers = cfg[CONF_NOTIFIERS]
-        can_ack = cfg[CONF_CAN_ACK]
-        title_template = cfg.get(CONF_TITLE)
-        data = cfg.get(CONF_DATA)
-
-        entities.append(
-            Alert(
-                object_id,
-                name,
-                watched_entity_id,
-                alert_state,
-                repeat,
-                skip_first,
-                message_template,
-                done_message_template,
-                notifiers,
-                can_ack,
-                title_template,
-                data,
-            )
-        )
-
-    if entities:
-        await component.async_add_entities(entities)
-        await _async_setup_alert_services(hass, component)
 
     return True
 
 
-async def _async_setup_alert_services(
-    hass: HomeAssistant, component: EntityComponent[Alert]
-) -> None:
-    """Set up turn_on/turn_off/toggle services for alert entities."""
-
-    async def async_handle_alert_service(service_call: ServiceCall) -> None:
-        """Handle calls to alert services."""
-        alert_ids = await service.async_extract_entity_ids(hass, service_call)
-
-        for alert in component.entities:
-            if alert.entity_id not in alert_ids:
-                continue
-            alert.async_set_context(service_call.context)
-            if service_call.service == SERVICE_TURN_ON:
-                await alert.async_turn_on()
-            elif service_call.service == SERVICE_TOGGLE:
-                await alert.async_toggle()
-            else:
-                await alert.async_turn_off()
-
-    if not hass.services.has_service(DOMAIN, SERVICE_TURN_OFF):
-        hass.services.async_register(
-            DOMAIN,
-            SERVICE_TURN_OFF,
-            async_handle_alert_service,
-            schema=ALERT_SERVICE_SCHEMA,
-        )
-        hass.services.async_register(
-            DOMAIN,
-            SERVICE_TURN_ON,
-            async_handle_alert_service,
-            schema=ALERT_SERVICE_SCHEMA,
-        )
-        hass.services.async_register(
-            DOMAIN,
-            SERVICE_TOGGLE,
-            async_handle_alert_service,
-            schema=ALERT_SERVICE_SCHEMA,
-        )
-
-
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up the HA Alerts component from a config entry.
-
-    Uses .get() with defaults for all keys that may be absent in entries that were
-    created by the old 3-step config flow (which only stored CONF_NAME and
-    CONF_ENTITY_ID in entry.options).  Without defaults, those entries would raise
-    a KeyError here, producing a red error indicator in the HA UI with no working
-    entity.
-    """
-    name: str = entry.options.get(CONF_NAME, "")
-    watched_entity_id: str = entry.options.get(CONF_ENTITY_ID, "")
-    alert_state: str = entry.options.get(CONF_STATE, STATE_ON)
-    # CONF_REPEAT is stored as a single number (float) by the NumberSelector in the
-    # config flow UI, or as a list when coming from the service / YAML path.
-    # Normalise to list[float] so Alert always receives the same type.
-    # Option A (expert diagnosis): use .get() with DEFAULT_REPEAT fallback, then
-    # coerce scalar → list so downstream code always iterates safely.
-    repeat_raw = entry.options.get(CONF_REPEAT, DEFAULT_REPEAT)
-    if isinstance(repeat_raw, list):
-        repeat_float = [float(r) for r in repeat_raw]
-    else:
-        repeat_float = [float(repeat_raw)]
-    skip_first: bool = entry.options.get(CONF_SKIP_FIRST, DEFAULT_SKIP_FIRST)
-    message_template: str | None = entry.options.get(CONF_ALERT_MESSAGE)
-    done_message_template: str | None = entry.options.get(CONF_DONE_MESSAGE)
-    notifiers: list[str] = entry.options.get(CONF_NOTIFIERS, [])
-    can_ack: bool = entry.options.get(CONF_CAN_ACK, DEFAULT_CAN_ACK)
-    title_template: str | None = entry.options.get(CONF_TITLE)
-    data: dict[Any, Any] = entry.options.get(CONF_DATA, {})
-
-    # Guard: if name or entity_id is missing, the entry is irrecoverably broken
-    # (nothing to watch or name the entity).  Log and fail cleanly.
-    if not name or not watched_entity_id:
-        _LOGGER.error(
-            "ha_alerts entry %s is missing required options (name=%r, entity_id=%r). "
-            "Please delete and re-add the alert via the UI.",
-            entry.entry_id,
-            name,
-            watched_entity_id,
-        )
-        return False
-
+    """Set up HA Alerts from a config entry — forwards to the switch platform."""
     await async_register_management_services(hass)
 
-    try:
-        entity = Alert(
-            slugify(name),
-            name,
-            watched_entity_id,
-            alert_state,
-            repeat_float,
-            skip_first,
-            Template(message_template, hass) if message_template else None,
-            Template(done_message_template, hass) if done_message_template else None,
-            notifiers,
-            can_ack,
-            Template(title_template, hass) if title_template else None,
-            data,
-        )
-    except Exception as e:
-        _LOGGER.exception("Alert init failed: %s", e)
-        raise
-
-    # Issue #3 fix: for config entries, avoid EntityComponent and its deprecated
-    # async_remove_entity() method. We add the entity via the shared component (needed
-    # for turn_on/turn_off/toggle service dispatch) but track it ourselves per-entry
-    # so we can remove it safely via the public entity.async_remove() API.
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = {}
 
-    component: EntityComponent[Alert] | None = hass.data.get(f"{DOMAIN}_component")
-    if component is None:
-        component = EntityComponent[Alert](_LOGGER, DOMAIN, hass)
-        hass.data[f"{DOMAIN}_component"] = component
-        await component.async_setup({})
-
-    await component.async_add_entities([entity])
-    await _async_setup_alert_services(hass, component)
-
-    # Store a reference to the live entity so update/unload can reach it.
-    hass.data[DOMAIN][entry.entry_id] = entity
-
-    # Issue #5 fix: options updates are handled in-place by async_handle_update
-    # (which calls entity.apply_options() directly).  The update_listener is kept
-    # only as a fallback for changes made via the UI options flow, where a full
-    # reload is acceptable because the user initiated it deliberately.
-    entry.async_on_unload(entry.add_update_listener(update_listener))
+    await hass.config_entries.async_forward_entry_setups(entry, (Platform.SWITCH,))
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload an HA Alerts entry.
-
-    Issue #4 fix: return the actual outcome of the entity removal rather than
-    always returning True.
-    """
-    entity: Alert | None = hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
-    if entity is None:
-        # Entry was never fully set up (e.g., setup failed) — nothing to clean up.
-        return True
-
-    # Use the public ToggleEntity.async_remove() instead of the deprecated
-    # EntityComponent.async_remove_entity() (Issue #3 fix).
-    try:
-        await entity.async_remove()
-    except Exception:
-        _LOGGER.exception("Failed to remove alert entity %s", entity.entity_id)
-        return False
-
-    return True
+    """Unload a config entry."""
+    return await hass.config_entries.async_unload_platforms(entry, (Platform.SWITCH,))
 
 
 async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Handle options updates that come through the UI options flow.
-
-    This triggers a full reload so the entity picks up all new option values.
-    The in-place update path (service call) is handled separately in
-    async_handle_update, which preserves active-firing state.
-    """
+    """Handle options updates from the UI options flow (full reload)."""
     await hass.config_entries.async_reload(entry.entry_id)
 
 
@@ -486,13 +269,11 @@ class Alert(ToggleEntity):
         title_template: Template | None,
         data: dict[Any, Any],
     ) -> None:
-        """Initialize the alert.
-
-        Note: hass is NOT set here. It is injected by the HA entity platform
-        machinery via async_added_to_hass(). State-change listeners are
-        registered there, not here. (Issue #1 fix)
-        """
+        """Initialize the alert."""
         self._attr_name = name
+        self._attr_unique_id = f"{DOMAIN}_{entity_id}"
+        self.entity_id = f"{DOMAIN}.{entity_id}"
+
         self._alert_state = state
         self._skip_first = skip_first
         self._data = data
@@ -504,8 +285,6 @@ class Alert(ToggleEntity):
         self._notifiers = notifiers
         self._can_ack = can_ack
 
-        # Option B (expert diagnosis): defensive guard so a scalar repeat value
-        # (e.g. 30.0 from NumberSelector) never causes "float object is not iterable".
         if not isinstance(repeat, (list, tuple)):
             repeat = [repeat]
         self._delay = [timedelta(minutes=float(val)) for val in repeat if val is not None]
@@ -515,26 +294,16 @@ class Alert(ToggleEntity):
         self._ack = False
         self._cancel: Callable[[], None] | None = None
         self._send_done_message = False
-        self._context = None
 
-        # Store the watched entity ID so async_added_to_hass() can subscribe.
         self._watched_entity_id = watched_entity_id
         self._unsub_state_change: Callable[[], None] | None = None
 
-        self.entity_id = f"{DOMAIN}.{entity_id}"
-        self._attr_unique_id = f"{DOMAIN}_{entity_id}"
-
     # ------------------------------------------------------------------
-    # HA lifecycle — Issue #1 fix
+    # HA lifecycle
     # ------------------------------------------------------------------
 
     async def async_added_to_hass(self) -> None:
-        """Register state-change listeners once the entity is part of HA.
-
-        This is the correct place to call async_track_state_change_event —
-        it runs after self.hass has been set by the platform machinery and
-        the entity has a proper entity_id in the registry.
-        """
+        """Register state-change listener once entity is part of HA."""
         self._unsub_state_change = async_track_state_change_event(
             self.hass, [self._watched_entity_id], self.watched_entity_change
         )
@@ -549,15 +318,11 @@ class Alert(ToggleEntity):
             self._cancel = None
 
     # ------------------------------------------------------------------
-    # Options hot-update — Issue #5 fix
+    # Options hot-update (Issue #5 fix)
     # ------------------------------------------------------------------
 
     def apply_options(self, options: dict[str, Any], hass: HomeAssistant) -> None:
-        """Apply updated config-entry options to this live entity in-place.
-
-        Called by async_handle_update so a full reload (and loss of firing state)
-        is avoided when the alert is actively firing.
-        """
+        """Apply updated config-entry options to this live entity in-place."""
         self._alert_state = options.get(CONF_STATE, self._alert_state)
         self._skip_first = options.get(CONF_SKIP_FIRST, self._skip_first)
         self._can_ack = options.get(CONF_CAN_ACK, self._can_ack)
@@ -570,7 +335,6 @@ class Alert(ToggleEntity):
                 self._delay = [timedelta(minutes=float(r)) for r in repeat_raw]
             else:
                 self._delay = [timedelta(minutes=float(repeat_raw))]
-            # Clamp the next-delay index in case the repeat list shrank.
             self._next_delay = min(self._next_delay, len(self._delay) - 1)
 
         msg_raw = options.get(CONF_ALERT_MESSAGE)
@@ -686,7 +450,7 @@ class Alert(ToggleEntity):
 
         for target in self._notifiers:
             await self.hass.services.async_call(
-                DOMAIN_NOTIFY, target, msg_payload, context=self._context
+                DOMAIN_NOTIFY, target, msg_payload
             )
 
     # ------------------------------------------------------------------
