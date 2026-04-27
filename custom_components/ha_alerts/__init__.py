@@ -367,6 +367,7 @@ class Alert(ToggleEntity):
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return extra state attributes."""
         return {
+            "ha_alerts": True,
             "firing": self._firing,
             "last_triggered": self._last_triggered.isoformat() if self._last_triggered else None,
         }
