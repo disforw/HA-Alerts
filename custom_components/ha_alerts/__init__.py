@@ -259,7 +259,7 @@ class Alert(ToggleEntity):
         self._send_done_message = False
         self._last_triggered: datetime | None = None
 
-        self._unsub_template: Callable[[], None] | None = None
+        self._unsub_template = None  # TrackTemplateResultInfo | None
 
     # ------------------------------------------------------------------
     # HA lifecycle
@@ -308,7 +308,7 @@ class Alert(ToggleEntity):
     def _stop_watching(self) -> None:
         """Unsubscribe from template tracking."""
         if self._unsub_template is not None:
-            self._unsub_template()
+            self._unsub_template.async_remove()
             self._unsub_template = None
 
     async def _handle_template_result(self, is_active: bool) -> None:
