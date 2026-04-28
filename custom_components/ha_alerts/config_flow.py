@@ -6,13 +6,7 @@ from typing import Any, cast
 
 import voluptuous as vol
 
-from homeassistant.const import (
-    CONF_ENTITY_ID,
-    CONF_NAME,
-    CONF_REPEAT,
-    CONF_STATE,
-    STATE_ON,
-)
+from homeassistant.const import CONF_NAME, CONF_REPEAT
 from homeassistant.helpers import selector
 from homeassistant.helpers.schema_config_entry_flow import (
     SchemaCommonFlowHandler,
@@ -28,6 +22,7 @@ from .const import (
     CONF_NOTIFIERS,
     CONF_SKIP_FIRST,
     CONF_TITLE,
+    CONF_TRIGGER_TEMPLATE,
     DEFAULT_REPEAT,
     DEFAULT_SKIP_FIRST,
     DOMAIN,
@@ -37,42 +32,11 @@ from .const import (
 async def get_user_schema(
     handler: SchemaCommonFlowHandler,
 ) -> vol.Schema:
-    """Build schema for step 1: name, entity_id, state, repeat, skip_first."""
-    hass = handler.parent_handler.hass
-
-    entity_id: str | None = handler.options.get(CONF_ENTITY_ID)
-    state_options: list[selector.SelectOptionDict] = []
-
-    if entity_id:
-        try:
-            entity_state = hass.states.get(entity_id)
-            if entity_state is not None:
-                seen: set[str] = set()
-                for s in [entity_state.state, "on", "off", "home", "not_home", "idle"]:
-                    if s and s not in seen:
-                        state_options.append(
-                            selector.SelectOptionDict(value=s, label=s)
-                        )
-                        seen.add(s)
-        except Exception:  # noqa: BLE001
-            state_options = []
-
-    if state_options:
-        state_selector: selector.Selector = selector.SelectSelector(
-            selector.SelectSelectorConfig(
-                options=state_options,
-                custom_value=True,
-                mode=selector.SelectSelectorMode.DROPDOWN,
-            )
-        )
-    else:
-        state_selector = selector.TextSelector()
-
+    """Build schema for step 1: name, trigger template, repeat, skip_first."""
     return vol.Schema(
         {
             vol.Required(CONF_NAME): selector.TextSelector(),
-            vol.Required(CONF_ENTITY_ID): selector.EntitySelector(),
-            vol.Required(CONF_STATE, default=STATE_ON): state_selector,
+            vol.Required(CONF_TRIGGER_TEMPLATE): selector.TemplateSelector(),
             vol.Required(
                 CONF_REPEAT, default=DEFAULT_REPEAT
             ): selector.NumberSelector(
@@ -94,40 +58,10 @@ async def get_user_schema(
 async def get_options_schema(
     handler: SchemaCommonFlowHandler,
 ) -> vol.Schema:
-    """Get schema for the options flow init step."""
-    hass = handler.parent_handler.hass
-
-    entity_id: str | None = handler.options.get(CONF_ENTITY_ID)
-    state_options: list[selector.SelectOptionDict] = []
-
-    if entity_id:
-        try:
-            entity_state = hass.states.get(entity_id)
-            if entity_state is not None:
-                seen: set[str] = set()
-                for s in [entity_state.state, "on", "off", "home", "not_home", "idle"]:
-                    if s and s not in seen:
-                        state_options.append(
-                            selector.SelectOptionDict(value=s, label=s)
-                        )
-                        seen.add(s)
-        except Exception:  # noqa: BLE001
-            state_options = []
-
-    if state_options:
-        state_selector: selector.Selector = selector.SelectSelector(
-            selector.SelectSelectorConfig(
-                options=state_options,
-                custom_value=True,
-                mode=selector.SelectSelectorMode.DROPDOWN,
-            )
-        )
-    else:
-        state_selector = selector.TextSelector()
-
+    """Build schema for the options flow init step."""
     return vol.Schema(
         {
-            vol.Required(CONF_STATE, default=STATE_ON): state_selector,
+            vol.Required(CONF_TRIGGER_TEMPLATE): selector.TemplateSelector(),
             vol.Required(
                 CONF_REPEAT, default=DEFAULT_REPEAT
             ): selector.NumberSelector(
@@ -207,7 +141,7 @@ class ConfigFlowHandler(SchemaConfigFlowHandler, domain=DOMAIN):
 
     async def async_step_import(self, import_data: dict[str, Any]) -> Any:
         """Handle import from ha_alerts.create service call."""
-        repeat_raw = import_data.get(CONF_REPEAT, [1])
+        repeat_raw = import_data.get(CONF_REPEAT, [DEFAULT_REPEAT])
         if isinstance(repeat_raw, list):
             import_data[CONF_REPEAT] = float(repeat_raw[0])
         else:

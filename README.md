@@ -1,151 +1,131 @@
 # HA Alerts
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
+A HACS custom integration for Home Assistant that replaces the built-in alerting system with a clean, UI-driven alternative powered by Jinja2 templates.
 
-A HACS-compatible custom integration for Home Assistant that brings **UI-based config flow** to the built-in `alert` integration — no more YAML required.
+## Features
 
-> Based on the work from [HA Core PR #79952](https://github.com/home-assistant/core/pull/79952), which added a UI config flow to the native Alert integration but was never merged. This standalone version makes that work available via HACS today.
-
----
-
-## What It Does
-
-HA Alerts watches an entity and sends repeating notifications when that entity enters a specified state. When the condition clears, it can optionally send a "done" message.
-
-Each alert is:
-- Configured entirely through the Home Assistant UI (no YAML needed)
-- A `ToggleEntity` — you can **acknowledge** (silence) it by turning it off, and **unacknowledge** by turning it back on
-- Capable of sending to any notify service registered in your HA instance
-
----
-
-## Key Features
-
-| Feature | Description |
-|---|---|
-| **UI Config Flow** | Add and configure alerts entirely through Settings → Devices & Services |
-| **Repeat Intervals** | Define one or more intervals (in minutes) for escalating re-notifications |
-| **Skip First** | Optionally skip the first notification and wait for the first repeat interval |
-| **Acknowledge / Unacknowledge** | Silence an active alert by toggling the entity off; re-enable by toggling on |
-| **Message Template** | Jinja2 template for the alert message body |
-| **Done Message Template** | Jinja2 template for the message sent when the alert condition clears |
-| **Title Template** | Jinja2 template for the notification title |
-| **Extra Data** | Pass additional data payload to the notification service |
-| **Multiple Notifiers** | Send to one or more `notify.*` services simultaneously |
-| **YAML Compatible** | Still supports YAML config under the `ha_alerts:` key for backwards compatibility |
-
----
+- **Template-based triggering** — any Jinja2 expression that evaluates to `true` fires the alert. Watch a single entity, multiple entities, an entire device class, or any complex condition.
+- **UI config flow** — add and manage alerts via **Settings → Helpers → Add Helper → HA Alerts**
+- **Single unified row** per alert in the Helpers screen — toggle, history, reconfigure, and delete all in one place
+- **Arm / Disarm** — the toggle arms or disarms the alert
+  - **Armed** (`on`): template is evaluated, notifications fire when it becomes true
+  - **Disarmed** (`off`): template not evaluated, completely silent. Disarming mid-fire is a hard stop.
+- **Repeating notifications** — fires at a configurable interval (minutes) while the condition remains true
+- **Skip-first** — skip the immediate notification and wait for the first repeat interval instead
+- **Done message** — sends a notification when the alert condition clears
+- **Custom Jinja2 templates** — for message, done message, and title
+- **Multiple notifiers** — send to one or more notify services simultaneously
+- **Extra data payload** — pass arbitrary data to the notify service
+- **Dynamic icons** — `mdi:bell-off` (disarmed), `mdi:bell` (armed), `mdi:bell-alert` (firing)
+- **State attributes** — `firing` (bool) and `last_triggered` (ISO timestamp) for automations
+- **Management services** — `ha_alerts.create`, `ha_alerts.update`, `ha_alerts.delete`
 
 ## Installation
 
-### Via HACS (Recommended)
+Install via [HACS](https://hacs.xyz) by adding this repository as a custom repository, or copy `custom_components/ha_alerts` into your HA config directory.
 
-1. Open HACS in your Home Assistant instance
-2. Go to **Integrations**
-3. Click the **⋮** menu (top right) → **Custom repositories**
-4. Add `https://github.com/disforw/HA-Alerts` as an **Integration**
-5. Search for **HA Alerts** and click **Download**
-6. Restart Home Assistant
+## Usage
 
-### Manual
+### Adding an alert via UI
 
-1. Download or clone this repository
-2. Copy the `custom_components/ha_alerts/` directory into your HA config's `custom_components/` folder
-3. Restart Home Assistant
+1. **Settings → Helpers → Add Helper → HA Alerts**
+2. **Step 1 — Alert:**
+   - **Name** — friendly name (e.g. `Den Light On`)
+   - **Trigger Template** — Jinja2 expression that evaluates to `true` when alert should fire
+   - **Repeat Interval** — how often to re-notify while condition persists (minutes)
+   - **Skip First** — skip the immediate notification, wait for first repeat
+3. **Step 2 — Notifications:**
+   - **Notification Services** — one or more notify services
+   - **Message / Done Message / Title** — optional Jinja2 templates
+   - **Extra Data** — optional payload
 
----
+### Trigger template examples
 
-## Adding an Alert via the UI
-
-1. Go to **Settings → Devices & Services**
-2. Click **+ Add Integration**
-3. Search for **HA Alerts**
-4. Follow the three-step setup wizard:
-
-### Step 1 — Basic Info
-
-| Field | Description |
-|---|---|
-| **Name** | A friendly name for this alert (e.g. "Garage Door Open") |
-| **Entity** | The entity to watch (e.g. `binary_sensor.garage_door`) |
-
-### Step 2 — Alert Options
-
-| Field | Description |
-|---|---|
-| **Alert State** | The state that triggers alerting. Defaults to `on` |
-| **Repeat Intervals** | One or more intervals in minutes. First value = initial repeat; subsequent values allow escalation. Example: `5, 15, 60` |
-| **Can Acknowledge** | Whether the alert can be silenced by toggling the entity off |
-| **Skip First Notification** | If enabled, no notification is sent immediately — only after the first interval elapses |
-
-### Step 3 — Notification Services
-
-| Field | Description |
-|---|---|
-| **Notification Services** | Select one or more `notify.*` services to send through |
-| **Message Template** | _(Optional)_ Jinja2 template for the alert message. Falls back to the alert name |
-| **Done Message Template** | _(Optional)_ Jinja2 template for the message sent when the condition clears |
-| **Title Template** | _(Optional)_ Jinja2 template for the notification title |
-| **Extra Data** | _(Optional)_ Additional data passed to the notify service |
-
----
-
-## YAML Configuration (Legacy)
-
-You can still configure alerts via `configuration.yaml` under the `ha_alerts:` key:
-
-```yaml
-ha_alerts:
-  garage_door_alert:
-    name: Garage Door Open
-    entity_id: binary_sensor.garage_door
-    state: "on"
-    repeat:
-      - 5
-      - 15
-      - 60
-    can_acknowledge: true
-    skip_first: false
-    notifiers:
-      - mobile_app_my_phone
-    message: "The garage door has been open for {{ repeat_delay }} minutes!"
-    done_message: "Garage door is now closed."
-    title: "Garage Door Alert"
+**Single entity state:**
+```jinja2
+{{ is_state('light.den', 'on') }}
 ```
 
----
+**Any moisture sensor wet:**
+```jinja2
+{{ states.sensor | selectattr('attributes.device_class', 'eq', 'moisture') | selectattr('state', 'eq', 'wet') | list | count > 0 }}
+```
 
-## Entity States
+**Any door open while away:**
+```jinja2
+{{ is_state('person.ben', 'not_home') and states.binary_sensor | selectattr('attributes.device_class', 'eq', 'door') | selectattr('state', 'eq', 'on') | list | count > 0 }}
+```
 
-The alert entity (`ha_alerts.<name>`) reports three states:
+**Temperature threshold:**
+```jinja2
+{{ states('sensor.outdoor_temperature') | float > 95 }}
+```
 
-| State | Meaning |
-|---|---|
-| `idle` | The watched entity is not in the alert state |
-| `on` | Alert is active and firing (notifications being sent) |
-| `off` | Alert is active but has been acknowledged (silenced) |
+### Arm / Disarm
 
----
+Each alert entity is a switch. Toggle it to arm or disarm the alert:
+- **Armed** — alert watches the template and fires notifications
+- **Disarmed** — completely silent, template not evaluated
 
-## Services
+### Auto-entities card
 
-The integration registers these services under the `ha_alerts` domain:
+To show all HA Alerts in a Lovelace card using [auto-entities](https://github.com/thomasloven/lovelace-auto-entities):
 
-| Service | Description |
-|---|---|
-| `ha_alerts.turn_on` | Unacknowledge (re-enable) a silenced alert |
-| `ha_alerts.turn_off` | Acknowledge (silence) an active alert |
-| `ha_alerts.toggle` | Toggle acknowledgement state |
+```yaml
+type: custom:auto-entities
+card:
+  type: entities
+filter:
+  include:
+    - attributes:
+        ha_alerts: true
+```
 
----
+### Management services
 
-## Requirements
+**Create an alert:**
+```yaml
+service: ha_alerts.create
+data:
+  name: Den Light Alert
+  trigger_template: "{{ is_state('light.den', 'on') }}"
+  repeat: 5
+  notifiers:
+    - mobile_app_my_phone
+  message: "Den light has been on for a while!"
+  done_message: "Den light is now off."
+```
 
-- Home Assistant 2023.1.0 or newer
-- At least one configured `notify` service
+**Update an alert:**
+```yaml
+service: ha_alerts.update
+data:
+  entity_id: switch.den_light_alert
+  repeat: 10
+  notifiers:
+    - mobile_app_my_phone
+    - notify_telegram
+```
 
----
+**Delete an alert:**
+```yaml
+service: ha_alerts.delete
+data:
+  entity_id: switch.den_light_alert
+```
 
-## License
+## Changelog
 
-MIT — see [LICENSE](LICENSE)
+### v1.1
+- **Template-based triggering** replaces `entity_id` + `state` fields
+- Any Jinja2 expression supported — single entity, device class, multi-condition, threshold
+- `ha_alerts.create` and `ha_alerts.update` services updated to use `trigger_template`
+
+### v1.0.2
+- Added `ha_alerts: true` state attribute for auto-entities filtering
+
+### v1.0.1
+- Fixed `repeat` schema to accept bare number in service calls
+
+### v1.0.0
+- Initial release

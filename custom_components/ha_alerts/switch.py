@@ -5,19 +5,13 @@ import logging
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import (
-    CONF_ENTITY_ID,
-    CONF_NAME,
-    CONF_REPEAT,
-    CONF_STATE,
-    STATE_ON,
-)
+from homeassistant.const import CONF_NAME, CONF_REPEAT
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.template import Template
 from homeassistant.util import slugify
 
-from . import Alert, _build_entity_id_from_entry, update_listener
+from . import Alert, update_listener
 from .const import (
     CONF_ALERT_MESSAGE,
     CONF_DATA,
@@ -25,6 +19,7 @@ from .const import (
     CONF_NOTIFIERS,
     CONF_SKIP_FIRST,
     CONF_TITLE,
+    CONF_TRIGGER_TEMPLATE,
     DEFAULT_REPEAT,
     DEFAULT_SKIP_FIRST,
     DOMAIN,
@@ -40,8 +35,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up an HA Alert entity from a config entry."""
     name: str = entry.options.get(CONF_NAME, "")
-    watched_entity_id: str = entry.options.get(CONF_ENTITY_ID, "")
-    alert_state: str = entry.options.get(CONF_STATE, STATE_ON)
+    trigger_template_raw: str = entry.options.get(CONF_TRIGGER_TEMPLATE, "")
 
     repeat_raw = entry.options.get(CONF_REPEAT, DEFAULT_REPEAT)
     if isinstance(repeat_raw, list):
@@ -57,21 +51,20 @@ async def async_setup_entry(
     done_message_raw: str | None = entry.options.get(CONF_DONE_MESSAGE)
     title_raw: str | None = entry.options.get(CONF_TITLE)
 
-    if not name or not watched_entity_id:
+    if not name or not trigger_template_raw:
         _LOGGER.error(
-            "ha_alerts entry %s is missing required options (name=%r, entity_id=%r). "
+            "ha_alerts entry %s is missing required options (name=%r, trigger_template=%r). "
             "Please delete and re-add the alert via the UI.",
             entry.entry_id,
             name,
-            watched_entity_id,
+            trigger_template_raw,
         )
         return
 
     entity = Alert(
         slugify(name),
         name,
-        watched_entity_id,
-        alert_state,
+        Template(trigger_template_raw, hass),
         repeat_float,
         skip_first,
         Template(message_raw, hass) if message_raw else None,
@@ -81,10 +74,6 @@ async def async_setup_entry(
         data,
     )
 
-    # Store reference so the update service can reach this entity by entry_id.
     hass.data[DOMAIN][entry.entry_id] = entity
-
     async_add_entities([entity])
-
-    # Wire up the options-flow update listener (full reload on UI edits).
     entry.async_on_unload(entry.add_update_listener(update_listener))

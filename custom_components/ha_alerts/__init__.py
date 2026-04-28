@@ -17,21 +17,24 @@ from homeassistant.components.notify import (
 from homeassistant.config_entries import ConfigEntry, SOURCE_IMPORT
 from homeassistant.const import (
     ATTR_ENTITY_ID,
-    CONF_ENTITY_ID,
     CONF_NAME,
     CONF_REPEAT,
-    CONF_STATE,
-    Platform,
+    SERVICE_TOGGLE,
+    SERVICE_TURN_OFF,
+    SERVICE_TURN_ON,
     STATE_ON,
+    Platform,
 )
-from homeassistant.core import Event, HomeAssistant, ServiceCall
+from homeassistant.core import Event, HomeAssistant, ServiceCall, callback
+from homeassistant.helpers import service
 from homeassistant.helpers.entity import ToggleEntity
 from homeassistant.helpers.event import (
+    TrackTemplate,
     async_track_point_in_time,
-    async_track_state_change_event,
+    async_track_template_result,
 )
 import homeassistant.helpers.config_validation as cv
-from homeassistant.helpers.template import Template
+from homeassistant.helpers.template import Template, result_as_boolean
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import slugify
 from homeassistant.util.dt import now
@@ -43,6 +46,7 @@ from .const import (
     CONF_NOTIFIERS,
     CONF_SKIP_FIRST,
     CONF_TITLE,
+    CONF_TRIGGER_TEMPLATE,
     DEFAULT_REPEAT,
     DEFAULT_SKIP_FIRST,
     DOMAIN,
@@ -50,11 +54,10 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-ALERT_SCHEMA = vol.Schema(
-    {
+CONFIG_SCHEMA = vol.Schema(
+    {DOMAIN: cv.schema_with_slug_keys(vol.Schema({
         vol.Required(CONF_NAME): cv.string,
-        vol.Required(CONF_ENTITY_ID): cv.entity_id,
-        vol.Required(CONF_STATE, default=STATE_ON): cv.string,
+        vol.Required(CONF_TRIGGER_TEMPLATE): cv.template,
         vol.Required(CONF_REPEAT): vol.All(
             cv.ensure_list,
             [vol.Coerce(float)],
@@ -66,19 +69,20 @@ ALERT_SCHEMA = vol.Schema(
         vol.Optional(CONF_TITLE): cv.template,
         vol.Optional(CONF_DATA): dict,
         vol.Required(CONF_NOTIFIERS): vol.All(cv.ensure_list, [cv.string]),
-    }
+    }))},
+    extra=vol.ALLOW_EXTRA,
 )
 
-CONFIG_SCHEMA = vol.Schema(
-    {DOMAIN: cv.schema_with_slug_keys(ALERT_SCHEMA)}, extra=vol.ALLOW_EXTRA
-)
+ALERT_SERVICE_SCHEMA = vol.Schema({vol.Required(ATTR_ENTITY_ID): cv.entity_ids})
 
 CREATE_SERVICE_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_NAME): cv.string,
-        vol.Required(CONF_ENTITY_ID): cv.entity_id,
-        vol.Optional(CONF_STATE, default=STATE_ON): cv.string,
-        vol.Required(CONF_REPEAT): vol.Any(vol.All(cv.ensure_list, [vol.Coerce(float)]), vol.Coerce(float)),
+        vol.Required(CONF_TRIGGER_TEMPLATE): cv.string,
+        vol.Required(CONF_REPEAT): vol.Any(
+            vol.All(cv.ensure_list, [vol.Coerce(float)]),
+            vol.Coerce(float),
+        ),
         vol.Optional(CONF_SKIP_FIRST, default=DEFAULT_SKIP_FIRST): cv.boolean,
         vol.Required(CONF_NOTIFIERS): vol.All(cv.ensure_list, [cv.string]),
         vol.Optional(CONF_ALERT_MESSAGE): cv.string,
@@ -90,9 +94,12 @@ CREATE_SERVICE_SCHEMA = vol.Schema(
 
 UPDATE_SERVICE_SCHEMA = vol.Schema(
     {
-        vol.Required(CONF_ENTITY_ID): cv.entity_id,
-        vol.Optional(CONF_STATE): cv.string,
-        vol.Optional(CONF_REPEAT): vol.Any(vol.All(cv.ensure_list, [vol.Coerce(float)]), vol.Coerce(float)),
+        vol.Required(ATTR_ENTITY_ID): cv.entity_id,
+        vol.Optional(CONF_TRIGGER_TEMPLATE): cv.string,
+        vol.Optional(CONF_REPEAT): vol.Any(
+            vol.All(cv.ensure_list, [vol.Coerce(float)]),
+            vol.Coerce(float),
+        ),
         vol.Optional(CONF_SKIP_FIRST): cv.boolean,
         vol.Optional(CONF_NOTIFIERS): vol.All(cv.ensure_list, [cv.string]),
         vol.Optional(CONF_ALERT_MESSAGE): cv.string,
@@ -104,19 +111,14 @@ UPDATE_SERVICE_SCHEMA = vol.Schema(
 
 DELETE_SERVICE_SCHEMA = vol.Schema(
     {
-        vol.Required(CONF_ENTITY_ID): cv.entity_id,
+        vol.Required(ATTR_ENTITY_ID): cv.entity_id,
     }
 )
 
 
-def is_on(hass: HomeAssistant, entity_id: str) -> bool:
-    """Return if the alert is armed."""
-    return hass.states.is_state(entity_id, STATE_ON)
-
-
 def _build_entity_id_from_entry(entry: ConfigEntry) -> str:
     """Build the expected entity_id for a config entry."""
-    return f"{DOMAIN}.{slugify(entry.options.get(CONF_NAME, ''))}"
+    return f"switch.{slugify(entry.options.get(CONF_NAME, ''))}"
 
 
 async def async_register_management_services(hass: HomeAssistant) -> None:
@@ -125,11 +127,9 @@ async def async_register_management_services(hass: HomeAssistant) -> None:
         return
 
     async def async_handle_create(service_call: ServiceCall) -> None:
-        """Create a new HA Alert via service call (SOURCE_IMPORT path)."""
         options: dict[str, Any] = {
             CONF_NAME: service_call.data[CONF_NAME],
-            CONF_ENTITY_ID: service_call.data[CONF_ENTITY_ID],
-            CONF_STATE: service_call.data.get(CONF_STATE, STATE_ON),
+            CONF_TRIGGER_TEMPLATE: service_call.data[CONF_TRIGGER_TEMPLATE],
             CONF_REPEAT: service_call.data[CONF_REPEAT],
             CONF_SKIP_FIRST: service_call.data.get(CONF_SKIP_FIRST, DEFAULT_SKIP_FIRST),
             CONF_NOTIFIERS: service_call.data[CONF_NOTIFIERS],
@@ -144,80 +144,57 @@ async def async_register_management_services(hass: HomeAssistant) -> None:
             data=options,
         )
         if result.get("type") == "abort":
-            _LOGGER.warning(
-                "ha_alerts.create: flow aborted — reason: %s",
-                result.get("reason"),
-            )
+            _LOGGER.warning("ha_alerts.create: flow aborted — %s", result.get("reason"))
         elif result.get("type") != "create_entry":
-            _LOGGER.error(
-                "ha_alerts.create: unexpected flow result type %s", result.get("type")
-            )
+            _LOGGER.error("ha_alerts.create: unexpected result %s", result.get("type"))
 
     async def async_handle_delete(service_call: ServiceCall) -> None:
-        """Delete an HA Alert by entity_id."""
-        target_entity_id = service_call.data[CONF_ENTITY_ID]
+        target = service_call.data[ATTR_ENTITY_ID]
         for entry in hass.config_entries.async_entries(DOMAIN):
-            if _build_entity_id_from_entry(entry) == target_entity_id:
+            if _build_entity_id_from_entry(entry) == target:
                 await hass.config_entries.async_remove(entry.entry_id)
                 return
-        _LOGGER.warning("ha_alerts.delete: entity %s not found", target_entity_id)
+        _LOGGER.warning("ha_alerts.delete: entity %s not found", target)
 
     async def async_handle_update(service_call: ServiceCall) -> None:
-        """Update an existing HA Alert's options in-place (Issue #5 fix)."""
-        target_entity_id = service_call.data[CONF_ENTITY_ID]
+        target = service_call.data[ATTR_ENTITY_ID]
         for entry in hass.config_entries.async_entries(DOMAIN):
-            if _build_entity_id_from_entry(entry) == target_entity_id:
+            if _build_entity_id_from_entry(entry) == target:
                 new_options = dict(entry.options)
                 for key in (
-                    CONF_STATE,
-                    CONF_REPEAT,
-                    CONF_SKIP_FIRST,
-                    CONF_NOTIFIERS,
-                    CONF_ALERT_MESSAGE,
-                    CONF_DONE_MESSAGE,
-                    CONF_TITLE,
-                    CONF_DATA,
+                    CONF_TRIGGER_TEMPLATE, CONF_REPEAT, CONF_SKIP_FIRST,
+                    CONF_NOTIFIERS, CONF_ALERT_MESSAGE, CONF_DONE_MESSAGE,
+                    CONF_TITLE, CONF_DATA,
                 ):
                     if key in service_call.data:
                         new_options[key] = service_call.data[key]
 
                 hass.config_entries.async_update_entry(entry, options=new_options)
-
                 entity: Alert | None = hass.data.get(DOMAIN, {}).get(entry.entry_id)
                 if entity is not None:
                     entity.apply_options(new_options, hass)
                     entity.async_write_ha_state()
                 return
-        _LOGGER.warning("ha_alerts.update: entity %s not found", target_entity_id)
+        _LOGGER.warning("ha_alerts.update: entity %s not found", target)
 
-    hass.services.async_register(
-        DOMAIN, "create", async_handle_create, schema=CREATE_SERVICE_SCHEMA
-    )
-    hass.services.async_register(
-        DOMAIN, "update", async_handle_update, schema=UPDATE_SERVICE_SCHEMA
-    )
-    hass.services.async_register(
-        DOMAIN, "delete", async_handle_delete, schema=DELETE_SERVICE_SCHEMA
-    )
+    hass.services.async_register(DOMAIN, "create", async_handle_create, schema=CREATE_SERVICE_SCHEMA)
+    hass.services.async_register(DOMAIN, "update", async_handle_update, schema=UPDATE_SERVICE_SCHEMA)
+    hass.services.async_register(DOMAIN, "delete", async_handle_delete, schema=DELETE_SERVICE_SCHEMA)
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Set up the HA Alerts component (YAML path)."""
+    """Set up HA Alerts (YAML path)."""
     await async_register_management_services(hass)
-
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = {}
-
     return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up HA Alerts from a config entry — forwards to the switch platform."""
+    """Set up HA Alerts from a config entry."""
     await async_register_management_services(hass)
-
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = {}
-
     await hass.config_entries.async_forward_entry_setups(entry, (Platform.SWITCH,))
     return True
 
@@ -236,11 +213,10 @@ class Alert(ToggleEntity):
     """Representation of an HA Alert.
 
     Toggle semantics:
-      on  = armed   — watching the entity, will fire and send notifications
-      off = disarmed — silent, not watching, no notifications
+      on  = armed   — template is evaluated, will fire and notify when true
+      off = disarmed — template not evaluated, no notifications
 
-    Disarming while firing is a hard stop (Option A): cancels all pending
-    notifications and clears firing state. No done message is sent.
+    Disarming is a hard stop: cancels all pending notifications immediately.
     """
 
     _attr_should_poll = False
@@ -249,8 +225,7 @@ class Alert(ToggleEntity):
         self,
         entity_id: str,
         name: str,
-        watched_entity_id: str,
-        state: str,
+        trigger_template: Template,
         repeat: list[float],
         skip_first: bool,
         message_template: Template | None,
@@ -262,16 +237,15 @@ class Alert(ToggleEntity):
         """Initialize the alert."""
         self._attr_name = name
         self._attr_unique_id = f"{DOMAIN}_{entity_id}"
-        self.entity_id = f"{DOMAIN}.{entity_id}"
+        self.entity_id = f"switch.{entity_id}"
 
-        self._alert_state = state
+        self._trigger_template = trigger_template
         self._skip_first = skip_first
         self._data = data
 
         self._message_template = message_template
         self._done_message_template = done_message_template
         self._title_template = title_template
-
         self._notifiers = notifiers
 
         if not isinstance(repeat, (list, tuple)):
@@ -279,54 +253,89 @@ class Alert(ToggleEntity):
         self._delay = [timedelta(minutes=float(val)) for val in repeat if val is not None]
         self._next_delay = 0
 
-        self._armed = True   # armed by default on creation
+        self._armed = True
         self._firing = False
         self._cancel: Callable[[], None] | None = None
         self._send_done_message = False
         self._last_triggered: datetime | None = None
 
-        self._watched_entity_id = watched_entity_id
-        self._unsub_state_change: Callable[[], None] | None = None
+        self._unsub_template: Callable[[], None] | None = None
 
     # ------------------------------------------------------------------
     # HA lifecycle
     # ------------------------------------------------------------------
 
     async def async_added_to_hass(self) -> None:
-        """Register state-change listener once entity is part of HA."""
+        """Register template listener once entity is part of HA."""
         self._start_watching()
 
     async def async_will_remove_from_hass(self) -> None:
-        """Cancel all listeners when the entity is being removed."""
+        """Cancel all listeners when entity is removed."""
         self._stop_watching()
         if self._cancel is not None:
             self._cancel()
             self._cancel = None
 
     def _start_watching(self) -> None:
-        """Subscribe to state changes on the watched entity."""
-        if self._unsub_state_change is not None:
+        """Subscribe to template result changes."""
+        if self._unsub_template is not None:
             return
-        self._unsub_state_change = async_track_state_change_event(
-            self.hass, [self._watched_entity_id], self.watched_entity_change
+
+        @callback
+        def _template_result_changed(
+            event: Event | None,
+            updates: list,
+        ) -> None:
+            """Handle template result changes."""
+            result = updates.pop().result
+            if isinstance(result, Exception):
+                _LOGGER.error(
+                    "Error evaluating trigger template for %s: %s",
+                    self._attr_name,
+                    result,
+                )
+                return
+
+            is_active = result_as_boolean(result)
+            self.hass.async_create_task(self._handle_template_result(is_active))
+
+        self._unsub_template = async_track_template_result(
+            self.hass,
+            [TrackTemplate(self._trigger_template, None)],
+            _template_result_changed,
         )
 
     def _stop_watching(self) -> None:
-        """Unsubscribe from state changes."""
-        if self._unsub_state_change is not None:
-            self._unsub_state_change()
-            self._unsub_state_change = None
+        """Unsubscribe from template tracking."""
+        if self._unsub_template is not None:
+            self._unsub_template()
+            self._unsub_template = None
+
+    async def _handle_template_result(self, is_active: bool) -> None:
+        """React to template becoming true or false."""
+        if not self._armed:
+            return
+        if is_active and not self._firing:
+            await self.begin_alerting()
+        elif not is_active and self._firing:
+            await self.end_alerting()
 
     # ------------------------------------------------------------------
-    # Options hot-update (Issue #5 fix)
+    # Options hot-update
     # ------------------------------------------------------------------
 
     def apply_options(self, options: dict[str, Any], hass: HomeAssistant) -> None:
-        """Apply updated config-entry options to this live entity in-place."""
-        self._alert_state = options.get(CONF_STATE, self._alert_state)
+        """Apply updated config-entry options in-place."""
         self._skip_first = options.get(CONF_SKIP_FIRST, self._skip_first)
         self._notifiers = options.get(CONF_NOTIFIERS, self._notifiers)
         self._data = options.get(CONF_DATA, self._data)
+
+        tmpl_raw = options.get(CONF_TRIGGER_TEMPLATE)
+        if tmpl_raw is not None:
+            self._stop_watching()
+            self._trigger_template = Template(tmpl_raw, hass)
+            if self._armed:
+                self._start_watching()
 
         repeat_raw = options.get(CONF_REPEAT)
         if repeat_raw is not None:
@@ -373,33 +382,26 @@ class Alert(ToggleEntity):
         }
 
     # ------------------------------------------------------------------
-    # Arm / disarm (turn_on / turn_off)
+    # Arm / disarm
     # ------------------------------------------------------------------
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        """Arm the alert — start watching and check current state."""
+        """Arm the alert."""
         if self._armed:
             return
         _LOGGER.debug("Arming alert: %s", self._attr_name)
         self._armed = True
         self._start_watching()
-
-        # Check immediately — if condition already met, begin alerting.
-        current = self.hass.states.get(self._watched_entity_id)
-        if current is not None and current.state == self._alert_state and not self._firing:
-            await self.begin_alerting()
-
         self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
-        """Disarm the alert — hard stop, cancel everything."""
+        """Disarm the alert — hard stop."""
         if not self._armed:
             return
         _LOGGER.debug("Disarming alert: %s", self._attr_name)
         self._armed = False
         self._stop_watching()
 
-        # Hard stop — cancel pending notifications, clear firing state.
         if self._cancel is not None:
             self._cancel()
             self._cancel = None
@@ -412,18 +414,6 @@ class Alert(ToggleEntity):
     # ------------------------------------------------------------------
     # Alert logic
     # ------------------------------------------------------------------
-
-    async def watched_entity_change(self, event: Event) -> None:
-        """Determine if the alert should start or stop."""
-        if not self._armed:
-            return
-        if (to_state := event.data.get("new_state")) is None:
-            return
-        _LOGGER.debug("Watched entity (%s) has changed", event.data.get("entity_id"))
-        if to_state.state == self._alert_state and not self._firing:
-            await self.begin_alerting()
-        if to_state.state != self._alert_state and self._firing:
-            await self.end_alerting()
 
     async def begin_alerting(self) -> None:
         """Begin the alert procedures."""
@@ -452,7 +442,7 @@ class Alert(ToggleEntity):
         self.async_write_ha_state()
 
     async def _schedule_notify(self) -> None:
-        """Schedule a notification."""
+        """Schedule next notification."""
         delay = self._delay[self._next_delay]
         next_msg = now() + delay
         self._cancel = async_track_point_in_time(self.hass, self._notify, next_msg)
@@ -466,16 +456,16 @@ class Alert(ToggleEntity):
         _LOGGER.info("Alerting: %s", self._attr_name)
         self._send_done_message = True
 
-        if self._message_template is not None:
-            message = self._message_template.async_render(parse_result=False)
-        else:
-            message = self._attr_name
-
+        message = (
+            self._message_template.async_render(parse_result=False)
+            if self._message_template
+            else self._attr_name
+        )
         await self._send_notification_message(message)
         await self._schedule_notify()
 
     async def _notify_done_message(self) -> None:
-        """Send notification of complete alert."""
+        """Send done notification."""
         _LOGGER.info("Sending done message for alert: %s", self._attr_name)
         self._send_done_message = False
 
@@ -486,18 +476,15 @@ class Alert(ToggleEntity):
         await self._send_notification_message(message)
 
     async def _send_notification_message(self, message: Any) -> None:
-        """Send a notification message to all configured notifiers."""
+        """Send a notification to all configured notifiers."""
         msg_payload = {ATTR_MESSAGE: message}
 
         if self._title_template is not None:
-            title = self._title_template.async_render(parse_result=False)
-            msg_payload[ATTR_TITLE] = title
+            msg_payload[ATTR_TITLE] = self._title_template.async_render(parse_result=False)
         if self._data:
             msg_payload[ATTR_DATA] = self._data
 
         _LOGGER.debug(msg_payload)
 
         for target in self._notifiers:
-            await self.hass.services.async_call(
-                DOMAIN_NOTIFY, target, msg_payload
-            )
+            await self.hass.services.async_call(DOMAIN_NOTIFY, target, msg_payload)
