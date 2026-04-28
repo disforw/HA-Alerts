@@ -386,12 +386,26 @@ class Alert(ToggleEntity):
     # ------------------------------------------------------------------
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        """Arm the alert."""
+        """Arm the alert — start watching and evaluate template immediately."""
         if self._armed:
             return
         _LOGGER.debug("Arming alert: %s", self._attr_name)
         self._armed = True
         self._start_watching()
+
+        # Evaluate template immediately — if already true, begin alerting now.
+        # async_track_template_result only fires on *changes*, so without this
+        # a condition that was true before arming would never trigger.
+        try:
+            is_active = result_as_boolean(
+                self._trigger_template.async_render(parse_result=False)
+            )
+        except Exception:  # noqa: BLE001
+            is_active = False
+
+        if is_active and not self._firing:
+            await self.begin_alerting()
+
         self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
