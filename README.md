@@ -6,19 +6,16 @@ A HACS custom integration for Home Assistant that replaces the built-in alerting
 
 - **Template-based triggering** — any Jinja2 expression that evaluates to `true` fires the alert. Watch a single entity, multiple entities, an entire device class, or any complex condition.
 - **UI config flow** — add and manage alerts via **Settings → Helpers → Add Helper → HA Alerts**
-- **Single unified row** per alert in the Helpers screen — toggle, history, reconfigure, and delete all in one place
 - **Arm / Disarm** — the toggle arms or disarms the alert
   - **Armed** (`on`): template is evaluated, notifications fire when it becomes true
-  - **Disarmed** (`off`): template not evaluated, completely silent. Disarming mid-fire is a hard stop.
+  - **Disarmed** (`off`): template not evaluated, completely silent. Disarming mid-fire is a hard stop or acknowlage.
 - **Repeating notifications** — fires at a configurable interval (minutes) while the condition remains true
 - **Skip-first** — skip the immediate notification and wait for the first repeat interval instead
-- **Done message** — sends a notification when the alert condition clears
+- **Done message** — sends a notification when the alert condition clears (optional)
 - **Custom Jinja2 templates** — for message, done message, and title
 - **Multiple notifiers** — send to one or more notify services simultaneously
-- **Extra data payload** — pass arbitrary data to the notify service
-- **Dynamic icons** — `mdi:bell-off` (disarmed), `mdi:bell` (armed), `mdi:bell-alert` (firing)
 - **State attributes** — `firing` (bool) and `last_triggered` (ISO timestamp) for automations
-- **Management services** — `ha_alerts.create`, `ha_alerts.update`, `ha_alerts.delete`
+- **Management services** — `ha_alerts.create`, `ha_alerts.update`, `ha_alerts.delete` **AI Friendly**
 
 ## Installation
 
