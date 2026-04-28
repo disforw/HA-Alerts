@@ -42,20 +42,6 @@ Each alert entity is a switch. Toggle it to arm or disarm the alert:
 - **Armed** — alert watches the template and fires notifications
 - **Disarmed** — completely silent, template not evaluated
 
-### Auto-entities card
-
-To show all HA Alerts in a Lovelace card using [auto-entities](https://github.com/thomasloven/lovelace-auto-entities):
-
-```yaml
-type: custom:auto-entities
-card:
-  type: entities
-filter:
-  include:
-    - attributes:
-        ha_alerts: true
-```
-
 ### Management services
 
 **Create an alert:**
