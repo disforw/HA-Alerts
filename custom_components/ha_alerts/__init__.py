@@ -373,6 +373,13 @@ class Alert(ToggleEntity):
         return "mdi:bell"
 
     @property
+    def icon_color(self) -> str | None:
+        """Return red when alert is actively firing."""
+        if self._firing:
+            return "#e53935"
+        return None
+
+    @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return extra state attributes."""
         return {
