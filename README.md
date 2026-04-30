@@ -1,4 +1,4 @@
-# HA Alerts
+# AI friendly HA Alerts!
 
 A HACS custom integration for Home Assistant that replaces the built-in alerting system with a clean, UI-driven alternative powered by Jinja2 templates.
 
