@@ -484,4 +484,34 @@ class Alert(ToggleEntity):
         _LOGGER.debug(msg_payload)
 
         for target in self._notifiers:
-            await self.hass.services.async_call(DOMAIN_NOTIFY, target, msg_payload)
+            # Guard: notifiers should be plain strings. If stored as a nested
+            # list (e.g. YAML import flattened incorrectly), unwrap one level.
+            if isinstance(target, list):
+                _LOGGER.warning(
+                    "ha_alerts '%s': notifier entry is a list %r — expected a string. "
+                    "Check your notifiers config.",
+                    self._attr_name,
+                    target,
+                )
+                for subtarget in target:
+                    await self._call_notify_service(subtarget, msg_payload)
+                continue
+            await self._call_notify_service(target, msg_payload)
+
+    async def _call_notify_service(
+        self, target: str, msg_payload: dict[str, Any]
+    ) -> None:
+        """Call a single notify service, logging clearly on failure."""
+        # Strip a leading "notify." prefix — users sometimes store the full
+        # service name (e.g. "notify.telegram") instead of just "telegram".
+        service = target.removeprefix(f"{DOMAIN_NOTIFY}.")
+        try:
+            await self.hass.services.async_call(DOMAIN_NOTIFY, service, msg_payload)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.error(
+                "ha_alerts '%s': failed to call notify.%s — %s. "
+                "Check that this notify service exists.",
+                self._attr_name,
+                service,
+                err,
+            )
