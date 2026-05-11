@@ -1,4 +1,4 @@
-"""Binary sensor platform for AlertSys – alert entities."""
+"""Binary sensor platform for HA Alerts – alert entities."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up AlertSys alert entities from a config entry."""
+    """Set up HA Alerts alert entities from a config entry."""
     manager = hass.data[DOMAIN]["manager"]
     store = manager.store
 

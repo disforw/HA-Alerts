@@ -1,5 +1,5 @@
-// AlertSys built-in panel entrypoint (lazy-loads the real panel to avoid early-load issues)
-class HaPanelAlertsys extends HTMLElement {
+// HA Alerts built-in panel entrypoint (lazy-loads the real panel to avoid early-load issues)
+class HaPanelHaAlerts extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
@@ -30,9 +30,9 @@ class HaPanelAlertsys extends HTMLElement {
     this._loaded = true;
 
     // Load the actual panel implementation only when the HA router mounts this view.
-    await import("./alertsys-panel.js");
+    await import("./ha-alerts-panel.js");
 
-    this._panelEl = document.createElement("alertsys-panel");
+    this._panelEl = document.createElement("ha-alerts-panel");
     this.shadowRoot.appendChild(this._panelEl);
 
     // Flush any props that arrived before we were connected.
@@ -42,6 +42,6 @@ class HaPanelAlertsys extends HTMLElement {
   }
 }
 
-if (!customElements.get("ha-panel-alertsys")) {
-  customElements.define("ha-panel-alertsys", HaPanelAlertsys);
+if (!customElements.get("ha-panel-ha-alerts")) {
+  customElements.define("ha-panel-ha-alerts", HaPanelHaAlerts);
 }

@@ -1,4 +1,4 @@
-"""Entity classes for the AlertSys integration."""
+"""Entity classes for the HA Alerts integration."""
 
 from __future__ import annotations
 
@@ -36,13 +36,13 @@ from .const import (
 )
 
 if TYPE_CHECKING:
-    from .store import AlertSysManager
+    from .store import HaAlertsManager
 
 _LOGGER = logging.getLogger(__name__)
 
 
 class AlertEntity(BinarySensorEntity, RestoreEntity):
-    """Represents a single alert in the alertsys domain."""
+    """Represents a single alert in the ha_alerts domain."""
 
     _attr_should_poll = False
 
@@ -54,7 +54,7 @@ class AlertEntity(BinarySensorEntity, RestoreEntity):
         level: str,
         condition_config: str,
         auto_quit: bool,
-        manager: AlertSysManager,
+        manager: HaAlertsManager,
         notification_config: dict | None = None,
         description: str = "",
     ) -> None:
@@ -530,7 +530,7 @@ class CounterEntity(SensorEntity):
         self,
         hass: HomeAssistant,
         level: str,
-        manager: AlertSysManager,
+        manager: HaAlertsManager,
     ) -> None:
         self.hass = hass
         self._level = level
@@ -543,7 +543,7 @@ class CounterEntity(SensorEntity):
 
     @property
     def name(self) -> str:
-        return f"AlertSys {self._level.title()} Count"
+        return f"HA Alerts {self._level.title()} Count"
 
     @property
     def native_value(self) -> int:

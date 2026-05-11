@@ -1,8 +1,8 @@
-"""Constants for the AlertSys integration."""
+"""Constants for the HA Alerts integration."""
 
-DOMAIN = "alertsys"
+DOMAIN = "ha_alerts"
 ALERT_ENTITY_DOMAIN = "binary_sensor"
-ALERT_OBJECT_ID_PREFIX = "alertsys_"
+ALERT_OBJECT_ID_PREFIX = "ha_alerts_"
 STORAGE_KEY = f"{DOMAIN}.storage"
 STORAGE_VERSION = 1
 
@@ -53,7 +53,7 @@ DEFAULT_CATEGORY_ID = "default"
 DEFAULT_CATEGORY_NAME = "Uncategorized"
 
 # Notification defaults
-NOTIF_DEFAULT_TITLE = "AlertSys {{ level | upper }}: {{ name }}"
+NOTIF_DEFAULT_TITLE = "HA Alerts {{ level | upper }}: {{ name }}"
 NOTIF_DEFAULT_MESSAGE = "Alert '{{ name }}' triggered"
 NOTIF_DEFAULT_RESOLVE_MESSAGE = "Alert '{{ name }}' - condition cleared"
 NOTIF_DEFAULT_REPEAT_INTERVAL_SEC = 60

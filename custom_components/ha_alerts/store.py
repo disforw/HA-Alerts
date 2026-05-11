@@ -1,8 +1,8 @@
-"""Persistent storage and runtime manager for AlertSys.
+"""Persistent storage and runtime manager for HA Alerts.
 
 This module holds two layers:
-- AlertSysStore: persistent config (alert definitions, categories)
-- AlertSysManager: runtime bridge (entities, CRUD, entity registry helpers)
+- HaAlertsStore: persistent config (alert definitions, categories)
+- HaAlertsManager: runtime bridge (entities, CRUD, entity registry helpers)
 
 Design notes (v2):
 - Alerts are keyed by a generated UID (uuid4) stored as the entity unique_id.
@@ -68,7 +68,7 @@ def _normalize_entity_id(entity_id: str) -> str:
 
 
 def _validate_entity_id(entity_id: str) -> bool:
-    """Check if entity_id is in official form: alertsys.<object_id>."""
+    """Check if entity_id is in official form: ha_alerts.<object_id>."""
     entity_id = _normalize_entity_id(entity_id)
     return bool(entity_id) and bool(_ENTITY_ID_RE.fullmatch(entity_id))
 
@@ -104,7 +104,7 @@ def _validate_condition(condition: str, hass: HomeAssistant | None = None) -> st
     return None
 
 
-class AlertSysStore:
+class HaAlertsStore:
     """Manage persistent storage for alert definitions and categories."""
 
     def __init__(self, hass: HomeAssistant) -> None:
@@ -169,13 +169,13 @@ class AlertSysStore:
             del self._data["categories"][cid]
 
 
-class AlertSysManager:
+class HaAlertsManager:
     """Runtime manager: bridges store, entities, and CRUD operations."""
 
     def __init__(
         self,
         hass: HomeAssistant,
-        store: AlertSysStore,
+        store: HaAlertsStore,
         *,
         config_entry: ConfigEntry,
     ) -> None:

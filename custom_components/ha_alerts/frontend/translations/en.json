@@ -62,7 +62,7 @@
     "err_name_required": "Name is required.",
     "err_condition_required": "Condition is required.",
     "err_condition_invalid": "Condition does not evaluate to a valid boolean value.",
-    "err_id_invalid": "Invalid Entity ID. Use: alertsys.<lowercase_letters_numbers_underscores>",
+    "err_id_invalid": "Invalid Entity ID. Use: ha_alerts.<lowercase_letters_numbers_underscores>",
     "err_category_required": "Enter a name for the new category.",
     "err_notif_data_json": "Notification data is not valid JSON.",
     "err_resolve_data_json": "Resolve notification data is not valid JSON.",

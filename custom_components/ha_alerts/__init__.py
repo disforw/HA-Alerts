@@ -1,4 +1,4 @@
-"""The AlertSys integration."""
+"""The HA Alerts integration."""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ from .const import (
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
-from .store import AlertSysManager, AlertSysStore
+from .store import HaAlertsManager, HaAlertsStore
 from .websocket_api import async_register_websocket_commands
 
 _LOGGER = logging.getLogger(__name__)
@@ -43,12 +43,12 @@ PLATFORMS = [Platform.BINARY_SENSOR, Platform.SENSOR]
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
-    """Set up the AlertSys domain (no YAML config)."""
+    """Set up the HA Alerts domain (no YAML config)."""
     hass.data.setdefault(DOMAIN, {})
     return True
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up AlertSys from a config entry."""
+    """Set up HA Alerts from a config entry."""
 
     # --- One-time domain-level registrations (guarded, not unloadable) ---
     if not hass.data[DOMAIN].get("_ws_registered"):
@@ -70,11 +70,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # --- Entry-bound resources ---
 
     # Initialize store
-    store = AlertSysStore(hass)
+    store = HaAlertsStore(hass)
     await store.async_load()
 
     # Initialize manager
-    manager = AlertSysManager(hass, store, config_entry=entry)
+    manager = HaAlertsManager(hass, store, config_entry=entry)
     hass.data[DOMAIN]["manager"] = manager
 
     # Forward platforms → binary_sensor.py creates AlertEntity, sensor.py creates CounterEntity
@@ -84,7 +84,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _register_services(hass, manager)
 
     # Load entrypoint wrapper as an extra JS module.
-    # It defines <ha-panel-alertsys>, which the built-in panel renders.
+    # It defines <ha-panel-ha-alerts>, which the built-in panel renders.
     entry_url = f"{PANEL_URL_ROOT}/entrypoint.js?v={_INTEGRATION_VERSION}"
     frontend.add_extra_js_url(hass, entry_url)
     hass.data[DOMAIN]["panel_entry_url"] = entry_url
@@ -92,10 +92,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Register as built-in panel (HACS-style, stays mounted across WS reconnect)
     frontend.async_register_built_in_panel(
         hass,
-        component_name=DOMAIN,  # -> <ha-panel-alertsys>
+        component_name=DOMAIN,  # -> <ha-panel-ha-alerts>
         sidebar_title="Alert Manager",
         sidebar_icon="mdi:alert-box-outline",
-        frontend_url_path=DOMAIN,  # -> /alertsys
+        frontend_url_path=DOMAIN,  # -> /ha_alerts
         require_admin=True,
     )
 
@@ -103,7 +103,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload AlertSys config entry."""
+    """Unload HA Alerts config entry."""
 
     # Remove panel
     frontend.async_remove_panel(hass, DOMAIN)
@@ -128,9 +128,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 @callback
 def _register_services(
     hass: HomeAssistant,
-    manager: AlertSysManager,
+    manager: HaAlertsManager,
 ) -> None:
-    """Register alertsys services."""
+    """Register ha_alerts services."""
 
     @callback
     def handle_quit(call: ServiceCall) -> None:

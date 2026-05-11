@@ -1,4 +1,4 @@
-"""WebSocket API for AlertSys CRUD operations."""
+"""WebSocket API for HA Alerts CRUD operations."""
 
 from __future__ import annotations
 
@@ -50,7 +50,7 @@ NOTIFICATION_SCHEMA = {
 
 @callback
 def async_register_websocket_commands(hass: HomeAssistant) -> None:
-    """Register all AlertSys WebSocket commands."""
+    """Register all HA Alerts WebSocket commands."""
     websocket_api.async_register_command(hass, ws_list_alerts)
     websocket_api.async_register_command(hass, ws_create_alert)
     websocket_api.async_register_command(hass, ws_update_alert)
@@ -66,7 +66,7 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
 
 
 @websocket_api.require_admin
-@websocket_api.websocket_command({vol.Required("type"): "alertsys/alert/list"})
+@websocket_api.websocket_command({vol.Required("type"): "ha_alerts/alert/list"})
 @websocket_api.async_response
 async def ws_list_alerts(hass, connection, msg):
     """List all alert definitions."""
@@ -90,7 +90,7 @@ async def ws_list_alerts(hass, connection, msg):
 
 @websocket_api.require_admin
 @websocket_api.websocket_command({
-    vol.Required("type"): "alertsys/alert/create",
+    vol.Required("type"): "ha_alerts/alert/create",
     vol.Required("name"): str,
     vol.Optional("entity_id"): str,
     vol.Optional("description"): str,
@@ -127,7 +127,7 @@ async def ws_create_alert(hass, connection, msg):
 
 @websocket_api.require_admin
 @websocket_api.websocket_command({
-    vol.Required("type"): "alertsys/alert/update",
+    vol.Required("type"): "ha_alerts/alert/update",
     vol.Required("alert_uid"): str,
     vol.Optional("entity_id"): str,
     vol.Optional("name"): str,
@@ -159,7 +159,7 @@ async def ws_update_alert(hass, connection, msg):
 
 @websocket_api.require_admin
 @websocket_api.websocket_command({
-    vol.Required("type"): "alertsys/alert/delete",
+    vol.Required("type"): "ha_alerts/alert/delete",
     vol.Required("alert_uid"): str,
 })
 @websocket_api.async_response
@@ -180,7 +180,7 @@ async def ws_delete_alert(hass, connection, msg):
 
 @websocket_api.require_admin
 @websocket_api.websocket_command({
-    vol.Required("type"): "alertsys/entity_id/suggest",
+    vol.Required("type"): "ha_alerts/entity_id/suggest",
     vol.Required("name"): str,
     vol.Optional("alert_uid"): str,
 })
@@ -200,7 +200,7 @@ async def ws_entity_id_suggest(hass, connection, msg):
 
 @websocket_api.require_admin
 @websocket_api.websocket_command({
-    vol.Required("type"): "alertsys/entity_id/check",
+    vol.Required("type"): "ha_alerts/entity_id/check",
     vol.Required("entity_id"): str,
     vol.Optional("alert_uid"): str,
 })
@@ -210,7 +210,7 @@ async def ws_entity_id_check(hass, connection, msg):
     try:
         manager = hass.data[DOMAIN]["manager"]
         entity_id = (msg.get("entity_id") or "").strip().lower()
-        # Official form only: binary_sensor.alertsys_<object_id>
+        # Official form only: binary_sensor.ha_alerts_<object_id>
         valid = bool(re.fullmatch(rf"{ALERT_ENTITY_DOMAIN}\.{ALERT_OBJECT_ID_PREFIX}[a-z0-9_]+", entity_id))
         if not valid:
             connection.send_result(msg["id"], {
@@ -234,7 +234,7 @@ async def ws_entity_id_check(hass, connection, msg):
 
 
 @websocket_api.require_admin
-@websocket_api.websocket_command({vol.Required("type"): "alertsys/category/list"})
+@websocket_api.websocket_command({vol.Required("type"): "ha_alerts/category/list"})
 @websocket_api.async_response
 async def ws_list_categories(hass, connection, msg):
     """List all categories."""
@@ -249,7 +249,7 @@ async def ws_list_categories(hass, connection, msg):
 
 
 @websocket_api.require_admin
-@websocket_api.websocket_command({vol.Required("type"): "alertsys/notify_services"})
+@websocket_api.websocket_command({vol.Required("type"): "ha_alerts/notify_services"})
 @websocket_api.async_response
 async def ws_notify_services(hass, connection, msg):
     """List available notify services."""
@@ -264,7 +264,7 @@ async def ws_notify_services(hass, connection, msg):
 
 @websocket_api.require_admin
 @websocket_api.websocket_command({
-    vol.Required("type"): "alertsys/test_notification",
+    vol.Required("type"): "ha_alerts/test_notification",
     vol.Required("targets"): [str],
     vol.Optional("title", default=""): str,
     vol.Optional("message", default=""): str,
@@ -274,7 +274,7 @@ async def ws_notify_services(hass, connection, msg):
     vol.Optional("context_name", default="Test Alert"): str,
     vol.Optional("context_level", default="info"): str,
     vol.Optional("context_condition", default=""): str,
-    vol.Optional("context_entity_id", default="binary_sensor.alertsys_test"): str,
+    vol.Optional("context_entity_id", default="binary_sensor.ha_alerts_test"): str,
 })
 @websocket_api.async_response
 async def ws_test_notification(hass, connection, msg):
@@ -284,8 +284,8 @@ async def ws_test_notification(hass, connection, msg):
             "name": msg.get("context_name", "Test Alert"),
             "level": msg.get("context_level", "info"),
             "condition": msg.get("context_condition", ""),
-            "entity_id": msg.get("context_entity_id", "binary_sensor.alertsys_test"),
-            "alert_id": msg.get("context_entity_id", "binary_sensor.alertsys_test").replace("binary_sensor.", "", 1),
+            "entity_id": msg.get("context_entity_id", "binary_sensor.ha_alerts_test"),
+            "alert_id": msg.get("context_entity_id", "binary_sensor.ha_alerts_test").replace("binary_sensor.", "", 1),
             "count": 1,
             "triggered_at": dt_util.utcnow(),
         }
@@ -332,7 +332,7 @@ async def ws_test_notification(hass, connection, msg):
 
 @websocket_api.require_admin
 @websocket_api.websocket_command({
-    vol.Required("type"): "alertsys/validate_template",
+    vol.Required("type"): "ha_alerts/validate_template",
     vol.Required("template"): str,
 })
 @websocket_api.async_response
@@ -356,7 +356,7 @@ async def ws_validate_template(hass, connection, msg):
         connection.send_error(msg["id"], "unknown_error", "Failed to validate template")
 @websocket_api.require_admin
 @websocket_api.websocket_command({
-    vol.Required("type"): "alertsys/template/render_once",
+    vol.Required("type"): "ha_alerts/template/render_once",
     vol.Required("template"): str,
     vol.Optional("variables"): vol.Any(None, dict),
     vol.Optional("strict", default=True): bool,
@@ -407,7 +407,7 @@ def _read_json_file(file_path: Path) -> dict:
 
 @websocket_api.require_admin
 @websocket_api.websocket_command({
-    vol.Required("type"): "alertsys/get_translations",
+    vol.Required("type"): "ha_alerts/get_translations",
     vol.Optional("language"): str,
 })
 @websocket_api.async_response

@@ -2,12 +2,12 @@
   "config": {
     "step": {
       "user": {
-        "title": "AlertSys",
-        "description": "Az AlertSys riasztáskezelő integráció engedélyezése."
+        "title": "HA Alerts",
+        "description": "Az HA Alerts riasztáskezelő integráció engedélyezése."
       }
     },
     "abort": {
-      "single_instance_allowed": "Az AlertSys már konfigurálva van."
+      "single_instance_allowed": "Az HA Alerts már konfigurálva van."
     }
   },
   "services": {

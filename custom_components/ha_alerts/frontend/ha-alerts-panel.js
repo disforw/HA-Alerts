@@ -1,5 +1,5 @@
 /**
- * AlertSys Panel – custom panel for Home Assistant.
+ * HA Alerts Panel – custom panel for Home Assistant.
  * Manages alerts via WebSocket CRUD commands.
  * Optimized version with dynamic translation loading.
  */
@@ -22,7 +22,7 @@ const FALLBACK_TRANSLATIONS = {
 };
 
 // Simple approach: use globalThis lit or raw HTMLElement
-class AlertSysPanel extends HTMLElement {
+class HaAlertsPanel extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
@@ -62,9 +62,9 @@ class AlertSysPanel extends HTMLElement {
       this._translations = result.translations || {};
       this._translationsLoaded = true;
       this._currentLanguage = lang;
-      console.log(`AlertSys: Translations loaded for '${lang}'`);
+      console.log(`HA Alerts: Translations loaded for '${lang}'`);
     } catch (e) {
-      console.warn("AlertSys: Failed to load translations, using fallback", e);
+      console.warn("HA Alerts: Failed to load translations, using fallback", e);
       this._translations = FALLBACK_TRANSLATIONS;
       this._translationsLoaded = true;
       this._currentLanguage = "en";
@@ -179,9 +179,9 @@ class AlertSysPanel extends HTMLElement {
 
   _debugEnabled() {
     try {
-      return localStorage.getItem("alertsys_debug") === "1" || window.__ALERTSYS_DEBUG__ === true;
+      return localStorage.getItem("ha_alerts_debug") === "1" || window.__HA_ALERTS_DEBUG__ === true;
     } catch (_) {
-      return window.__ALERTSYS_DEBUG__ === true;
+      return window.__HA_ALERTS_DEBUG__ === true;
     }
   }
 
@@ -195,7 +195,7 @@ class AlertSysPanel extends HTMLElement {
         innerLen: this.shadowRoot?.innerHTML?.length ?? null,
         visibility: document.visibilityState,
       };
-      console.debug(`AlertSys(panel): ${message}`, { ...state, ...extra });
+      console.debug(`HA Alerts(panel): ${message}`, { ...state, ...extra });
     } catch (_) {
       // ignore
     }
@@ -272,7 +272,7 @@ class AlertSysPanel extends HTMLElement {
       
       this._render();
     } catch (e) {
-      console.error("AlertSys: failed to load data", e);
+      console.error("HA Alerts: failed to load data", e);
       this._renderError(this._t("err_load_failed"));
     } finally {
       this._loading = false;
@@ -368,7 +368,7 @@ class AlertSysPanel extends HTMLElement {
     const entEl = root?.querySelector("#f-entity-id");
     // Entity ID input holds only object_id; domain prefix is fixed in UI.
     const obj = entEl?.value?.trim?.() || entEl?.placeholder?.trim?.() || "";
-    const entity_id = obj ? `binary_sensor.alertsys_${obj}` : "binary_sensor.alertsys_preview";
+    const entity_id = obj ? `binary_sensor.ha_alerts_${obj}` : "binary_sensor.ha_alerts_preview";
     return {
       name,
       level,
@@ -386,7 +386,7 @@ class AlertSysPanel extends HTMLElement {
 
     const name = this.shadowRoot.querySelector("#f-name").value.trim();
     const object_id = this.shadowRoot.querySelector("#f-entity-id").value.trim();
-    const entity_id = object_id ? `binary_sensor.alertsys_${object_id}` : "";
+    const entity_id = object_id ? `binary_sensor.ha_alerts_${object_id}` : "";
     const description = this.shadowRoot.querySelector("#f-description").value.trim();
     const level = this.shadowRoot.querySelector("#f-level").value;
     const condition = this.shadowRoot.querySelector("#f-condition").value.trim();
@@ -556,6 +556,6 @@ class AlertSysPanel extends HTMLElement {
   }
 }
 
-if (!customElements.get("alertsys-panel")) {
-  customElements.define("alertsys-panel", AlertSysPanel);
+if (!customElements.get("ha-alerts-panel")) {
+  customElements.define("ha-alerts-panel", HaAlertsPanel);
 }

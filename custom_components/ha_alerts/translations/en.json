@@ -2,12 +2,12 @@
   "config": {
     "step": {
       "user": {
-        "title": "AlertSys",
-        "description": "Enable the AlertSys alert management integration."
+        "title": "HA Alerts",
+        "description": "Enable the HA Alerts alert management integration."
       }
     },
     "abort": {
-      "single_instance_allowed": "AlertSys is already configured."
+      "single_instance_allowed": "HA Alerts is already configured."
     }
   },
   "services": {

@@ -36,7 +36,7 @@ export function looksLikeTemplate(str) {
 
 export async function validateTemplate(hass, template) {
   if (!hass || typeof hass.callWS !== "function") return { valid: true };
-  return hass.callWS({ type: "alertsys/validate_template", template });
+  return hass.callWS({ type: "ha_alerts/validate_template", template });
 }
 
 function _normalizeWsError(err) {
@@ -66,7 +66,7 @@ export async function renderTemplateOnce(
   // The built-in `render_template` subscription logs template errors to the
   // system log on each partial/invalid render.
   const msg = {
-    type: "alertsys/template/render_once",
+    type: "ha_alerts/template/render_once",
     template,
     strict: !!strict,
   };
