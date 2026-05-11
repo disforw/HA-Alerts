@@ -32,9 +32,8 @@ class HaAlertsPanel extends HTMLElement {
     this._editingAlert = null; // null = list view, {} = new, {id:...} = editing
     this._conditionValid = null; // null = unknown, true/false
     // Live template validity for notification fields (title/message/resolve_*)
-    this._notifTplValidity = { title: null, message: null, resolve_title: null, resolve_message: null };
+    this._notifTplValidity = { title: null, message: null, resolve_message: null };
     this._notifyServices = []; // cached from WS
-    this._autoQuitDefaults = { info: true, warning: true, error: false }; // overwritten from backend
     this._notifDefaults = { title: "", message: "", resolve_message: "" }; // overwritten from backend
     this._translations = {};
     this._translationsLoaded = false;
@@ -139,7 +138,7 @@ class HaAlertsPanel extends HTMLElement {
 
   // --- View routing helpers (used by views/list.js) ---
   _openNew() {
-    this._editingAlert = { name: "", entity_id: "", description: "", level: "info", condition: "", auto_quit: null, category_id: "default" };
+    this._editingAlert = { name: "", entity_id: "", description: "", condition: "", category_id: "default" };
     this._render();
   }
 
@@ -261,7 +260,6 @@ class HaAlertsPanel extends HTMLElement {
       const result = await listAlerts(this._hass);
       this._alerts = result.alerts || [];
       this._categories = result.categories || [];
-      if (result.auto_quit_defaults) this._autoQuitDefaults = result.auto_quit_defaults;
       if (result.notification_defaults) this._notifDefaults = result.notification_defaults;
       
       // Load notify services in background
@@ -363,18 +361,14 @@ class HaAlertsPanel extends HTMLElement {
   _getTemplatePreviewVariables() {
     const root = this.shadowRoot;
     const name = root?.querySelector("#f-name")?.value?.trim?.() || "";
-    const level = root?.querySelector("#f-level")?.value || "info";
     const condition = root?.querySelector("#f-condition")?.value?.trim?.() || "";
     const entEl = root?.querySelector("#f-entity-id");
-    // Entity ID input holds only object_id; domain prefix is fixed in UI.
     const obj = entEl?.value?.trim?.() || entEl?.placeholder?.trim?.() || "";
     const entity_id = obj ? `binary_sensor.ha_alerts_${obj}` : "binary_sensor.ha_alerts_preview";
     return {
       name,
-      level,
       condition,
       entity_id,
-      count: 1,
       triggered_at: new Date().toISOString(),
     };
   }
@@ -388,10 +382,7 @@ class HaAlertsPanel extends HTMLElement {
     const object_id = this.shadowRoot.querySelector("#f-entity-id").value.trim();
     const entity_id = object_id ? `binary_sensor.ha_alerts_${object_id}` : "";
     const description = this.shadowRoot.querySelector("#f-description").value.trim();
-    const level = this.shadowRoot.querySelector("#f-level").value;
     const condition = this.shadowRoot.querySelector("#f-condition").value.trim();
-    const aqOvr = this.shadowRoot.querySelector("#f-aq-override").checked;
-    const aqVal = this.shadowRoot.querySelector("#f-aq-value").checked;
     const catSel = this.shadowRoot.querySelector("#f-category").value;
     const newCat = this.shadowRoot.querySelector("#f-newcat").value.trim();
 
@@ -399,8 +390,6 @@ class HaAlertsPanel extends HTMLElement {
     if (!condition) { this._showError(this._t("err_condition_required")); return; }
     if (this._conditionValid === false) { this._showError(this._t("err_condition_invalid")); return; }
     if (this._idValid === false) { this._showError(this._t("err_id_invalid")); return; }
-
-    const auto_quit = aqOvr ? aqVal : null;
 
     let category_id = catSel;
     let category_name = null;
@@ -419,14 +408,7 @@ class HaAlertsPanel extends HTMLElement {
       title: this.shadowRoot.querySelector("#f-notif-title")?.value || "",
       message: this.shadowRoot.querySelector("#f-notif-message")?.value || "",
       data: null,
-      repeat_count: parseInt(this.shadowRoot.querySelector("#f-notif-repeat-count")?.value || "0", 10),
-      repeat_interval_sec: parseInt(
-        this.shadowRoot.querySelector("#f-notif-interval")?.value ||
-          String(this._notifDefaults?.repeat_interval_sec ?? 60),
-        10
-      ),
-      send_resolve: this.shadowRoot.querySelector("#f-notif-resolve")?.checked || false,
-      resolve_title: this.shadowRoot.querySelector("#f-notif-resolve-title")?.value || "",
+      repeat: parseInt(this.shadowRoot.querySelector("#f-notif-repeat")?.value || "0", 10),
       resolve_message: this.shadowRoot.querySelector("#f-notif-resolve-msg")?.value || "",
       resolve_data: null,
     };
@@ -451,18 +433,6 @@ class HaAlertsPanel extends HTMLElement {
       }
     }
 
-    // Validate numeric constraints
-    if (!Number.isFinite(notification.repeat_count) || notification.repeat_count < 0) {
-      this._showError(this._t("err_repeat_count_min"));
-      return;
-    }
-    if (notification.repeat_count > 0) {
-      if (!Number.isFinite(notification.repeat_interval_sec) || notification.repeat_interval_sec < 5) {
-        this._showError(this._t("err_repeat_interval_min"));
-        return;
-      }
-    }
-
 
     // Block saving if any *active* notification template field has a template error.
     if (notification.enabled) {
@@ -470,10 +440,7 @@ class HaAlertsPanel extends HTMLElement {
       const v = this._notifTplValidity || {};
       if (v.title === false) invalid.push(this._t("field_title"));
       if (v.message === false) invalid.push(this._t("field_message"));
-      if (notification.send_resolve) {
-        if (v.resolve_title === false) invalid.push(this._t("field_resolve_title"));
-        if (v.resolve_message === false) invalid.push(this._t("field_resolve_message"));
-      }
+      if (v.resolve_message === false) invalid.push(this._t("field_resolve_message"));
       if (invalid.length) {
         this._showError(this._t("err_notif_templates_invalid", { fields: invalid.join(", ") }));
         return;
@@ -488,9 +455,9 @@ class HaAlertsPanel extends HTMLElement {
 
         try {
       if (isEdit) {
-        await updateAlert(this._hass, { alert_uid: this._editingAlert.id, entity_id, description, name, level, condition, auto_quit, category_id, category_name, notification });
+        await updateAlert(this._hass, { alert_uid: this._editingAlert.id, entity_id, description, name, condition, category_id, category_name, notification });
       } else {
-        await createAlert(this._hass, { entity_id: entity_id || undefined, description, name, level, condition, auto_quit, category_id, category_name, notification });
+        await createAlert(this._hass, { entity_id: entity_id || undefined, description, name, condition, category_id, category_name, notification });
       }
       this._closeForm();
       await this._loadData();
@@ -508,9 +475,8 @@ class HaAlertsPanel extends HTMLElement {
     try {
       const notifEnabled = !!this.shadowRoot?.querySelector("#f-notif-enabled")?.checked;
       if (notifEnabled) {
-        const sendResolve = !!this.shadowRoot?.querySelector("#f-notif-resolve")?.checked;
         const v = this._notifTplValidity || {};
-        notifInvalid = (v.title === false) || (v.message === false) || (sendResolve && ((v.resolve_title === false) || (v.resolve_message === false)));
+        notifInvalid = (v.title === false) || (v.message === false) || (v.resolve_message === false);
       }
     } catch (_) {
       notifInvalid = false;
@@ -543,7 +509,7 @@ class HaAlertsPanel extends HTMLElement {
     this._runCleanup();
     this._editingAlert = null;
     this._conditionValid = null;
-    this._notifTplValidity = { title: null, message: null, resolve_title: null, resolve_message: null };
+    this._notifTplValidity = { title: null, message: null, resolve_message: null };
     this._idValid = true;
     this._render();
   }
