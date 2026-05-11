@@ -27,13 +27,11 @@ from homeassistant.config_entries import ConfigEntry
 from .const import (
     ALERT_ENTITY_DOMAIN,
     ALERT_OBJECT_ID_PREFIX,
-    AUTO_QUIT_DEFAULTS,
     DEFAULT_CATEGORY_ID,
     DEFAULT_CATEGORY_NAME,
     DOMAIN,
     STORAGE_KEY,
     STORAGE_VERSION,
-    VALID_LEVELS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -186,7 +184,6 @@ class HaAlertsManager:
 
         # Runtime entity tracking (populated by entity platform)
         self._alert_entities: dict[str, Any] = {}  # uid -> AlertEntity
-        self._counter_entities: dict[str, Any] = {}  # level -> CounterEntity
         self._async_add_entities_cb = None  # set by entity platform
 
     def set_add_entities_callback(self, cb) -> None:
@@ -203,11 +200,6 @@ class HaAlertsManager:
         """Unregister an alert entity."""
         self._alert_entities.pop(alert_uid, None)
 
-    @callback
-    def register_counter_entity(self, level: str, entity) -> None:
-        """Register a live counter entity."""
-        self._counter_entities[level] = entity
-
     def get_alert_entity(self, alert_uid: str):
         """Get a live alert entity by UID."""
         return self._alert_entities.get(alert_uid)
@@ -223,16 +215,6 @@ class HaAlertsManager:
     def alert_entities(self) -> list:
         """Return list of all live alert entities."""
         return list(self._alert_entities.values())
-
-    def get_counter_entity(self, level: str):
-        return self._counter_entities.get(level)
-
-    def resolve_auto_quit(self, alert_data: dict) -> bool:
-        """Resolve effective auto_quit for an alert definition."""
-        aq = alert_data.get("auto_quit")
-        if aq is None:
-            return AUTO_QUIT_DEFAULTS.get(alert_data["level"], True)
-        return bool(aq)
 
     # -----------------------
     # Entity registry helpers
@@ -337,10 +319,6 @@ class HaAlertsManager:
         if not name:
             raise ValueError("Name must not be empty")
 
-        level = data.get("level", "info")
-        if level not in VALID_LEVELS:
-            raise ValueError(f"Invalid level: {level!r}")
-
         condition = data.get("condition", "")
         err = _validate_condition(condition, self.hass)
         if err:
@@ -351,7 +329,6 @@ class HaAlertsManager:
             cat_name = data.get("category_name", category_id)
             self.store.set_category(category_id, {"name": cat_name})
 
-        auto_quit = data.get("auto_quit")  # None, True, or False
         notification = data.get("notification") or {}
 
         description = (data.get("description") or "").strip()
@@ -366,9 +343,7 @@ class HaAlertsManager:
 
         alert_def = {
             "name": name,
-            "level": level,
             "condition": condition.strip(),
-            "auto_quit": auto_quit,
             "category_id": category_id,
             "notification": notification,
             "description": description,
@@ -376,16 +351,12 @@ class HaAlertsManager:
         self.store.set_alert(alert_uid, alert_def)
         await self.store.async_save()
 
-        # Create and register entity
         if self._async_add_entities_cb:
-            effective_aq = self.resolve_auto_quit(alert_def)
             entity = AlertEntity(
                 hass=self.hass,
                 uid=alert_uid,
                 name=name,
-                level=level,
                 condition_config=condition.strip(),
-                auto_quit=effective_aq,
                 manager=self,
                 notification_config=notification,
                 description=description,
@@ -402,21 +373,14 @@ class HaAlertsManager:
         if existing is None:
             raise ValueError(f"Alert not found: {alert_uid!r}")
 
-        # Merge fields
         name = data.get("name", existing["name"]).strip()
         if not name:
             raise ValueError("Name must not be empty")
-
-        level = data.get("level", existing["level"])
-        if level not in VALID_LEVELS:
-            raise ValueError(f"Invalid level: {level!r}")
 
         condition = data.get("condition", existing["condition"])
         err = _validate_condition(condition, self.hass)
         if err:
             raise ValueError(err)
-
-        auto_quit = data.get("auto_quit", existing.get("auto_quit"))
 
         old_category = existing.get("category_id", DEFAULT_CATEGORY_ID)
         category_id = data.get("category_id", old_category) or DEFAULT_CATEGORY_ID
@@ -430,15 +394,12 @@ class HaAlertsManager:
         if len(description) > 255:
             raise ValueError("Description too long")
 
-        # Optionally rename entity_id
         if "entity_id" in data and data.get("entity_id") is not None:
             await self.async_rename_entity_id(alert_uid, data["entity_id"])
 
         alert_def = {
             "name": name,
-            "level": level,
             "condition": condition.strip(),
-            "auto_quit": auto_quit,
             "category_id": category_id,
             "notification": notification,
             "description": description,
@@ -448,31 +409,22 @@ class HaAlertsManager:
         self.store.cleanup_empty_categories()
         await self.store.async_save()
 
-        # Recreate entity on update (simple and robust).
-        # In-place update would preserve _active/_ack state across edits,
-        # but the added complexity is not justified: alert edits are rare,
-        # intentional admin actions, not triggered during normal operation.
         old_entity = self._alert_entities.get(alert_uid)
         if old_entity:
             await old_entity.async_remove()
             self.unregister_alert_entity(alert_uid)
 
         if self._async_add_entities_cb:
-            effective_aq = self.resolve_auto_quit(alert_def)
             entity = AlertEntity(
                 hass=self.hass,
                 uid=alert_uid,
                 name=name,
-                level=level,
                 condition_config=condition.strip(),
-                auto_quit=effective_aq,
                 manager=self,
                 notification_config=notification,
                 description=description,
             )
             self._async_add_entities_cb([entity])
-
-        self._update_all_counters()
 
         entity_id = await self.async_get_entity_id(alert_uid)
         return {**alert_def, "id": alert_uid, "entity_id": entity_id}
@@ -492,19 +444,10 @@ class HaAlertsManager:
             await old_entity.async_remove()
             self.unregister_alert_entity(alert_uid)
 
-        # Remove entity registry entry (free up entity_id)
         reg = self._registry()
         entity_id = reg.async_get_entity_id(ALERT_ENTITY_DOMAIN, DOMAIN, alert_uid)
         if entity_id:
             reg.async_remove(entity_id)
-
-        self._update_all_counters()
-
-    @callback
-    def _update_all_counters(self) -> None:
-        """Signal all counter entities to recalculate."""
-        for counter in self._counter_entities.values():
-            counter.async_schedule_update_ha_state()
 
     def list_alerts(self) -> list[dict]:
         """Return all alert definitions with their UID + entity_id."""

@@ -23,10 +23,8 @@ async def async_setup_entry(
     manager = hass.data[DOMAIN]["manager"]
     store = manager.store
 
-    # Provide the add_entities callback to the manager for dynamic CRUD
     manager.set_add_entities_callback(async_add_entities)
 
-    # Create alert entities from stored definitions
     alert_entities = []
     for alert_uid, alert_def in store.alerts.items():
         try:
@@ -37,14 +35,11 @@ async def async_setup_entry(
             _LOGGER.warning(
                 "Failed to ensure registry entry for %s: %s", alert_uid, exc
             )
-        effective_aq = manager.resolve_auto_quit(alert_def)
         entity = AlertEntity(
             hass=hass,
             uid=alert_uid,
             name=alert_def["name"],
-            level=alert_def["level"],
             condition_config=alert_def["condition"],
-            auto_quit=effective_aq,
             manager=manager,
             notification_config=alert_def.get("notification"),
             description=alert_def.get("description", ""),

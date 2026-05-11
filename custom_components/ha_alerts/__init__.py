@@ -39,7 +39,7 @@ _LOGGER = logging.getLogger(__name__)
 PANEL_URL_ROOT = f"/{DOMAIN}_panel"
 PANEL_FS_ROOT = str((Path(__file__).resolve().parent / "frontend"))
 
-PLATFORMS = [Platform.BINARY_SENSOR, Platform.SENSOR]
+PLATFORMS = [Platform.BINARY_SENSOR]
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
@@ -77,7 +77,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     manager = HaAlertsManager(hass, store, config_entry=entry)
     hass.data[DOMAIN]["manager"] = manager
 
-    # Forward platforms → binary_sensor.py creates AlertEntity, sensor.py creates CounterEntity
+    # Forward platforms → binary_sensor.py creates AlertEntity
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     # Register services (entry-bound – removed on unload)
@@ -112,7 +112,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if entry_url:
         frontend.remove_extra_js_url(hass, entry_url)
 
-    # Unload platforms (removes AlertEntity + CounterEntity instances)
+    # Unload platforms (removes AlertEntity instances)
     await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
     # Remove services registered in async_setup_entry

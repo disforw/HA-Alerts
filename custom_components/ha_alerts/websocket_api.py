@@ -17,13 +17,10 @@ from homeassistant.util import dt as dt_util
 from .const import (
     ALERT_ENTITY_DOMAIN,
     ALERT_OBJECT_ID_PREFIX,
-    AUTO_QUIT_DEFAULTS,
     DOMAIN,
     NOTIF_DEFAULT_MESSAGE,
-    NOTIF_DEFAULT_REPEAT_INTERVAL_SEC,
     NOTIF_DEFAULT_RESOLVE_MESSAGE,
     NOTIF_DEFAULT_TITLE,
-    VALID_LEVELS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -34,15 +31,8 @@ NOTIFICATION_SCHEMA = {
     vol.Optional("title", default=""): str,
     vol.Optional("message", default=""): str,
     vol.Optional("data"): vol.Any(None, dict),
-    # repeat_count: 0 = no repeat, otherwise repeat that many additional times
-    vol.Optional("repeat_count", default=0): vol.All(vol.Coerce(int), vol.Range(min=0)),
-    # repeat_interval_sec: only used when repeat_count > 0; minimum 5 seconds
-    vol.Optional("repeat_interval_sec", default=NOTIF_DEFAULT_REPEAT_INTERVAL_SEC): vol.All(
-        vol.Coerce(int),
-        vol.Range(min=5),
-    ),
-    vol.Optional("send_resolve", default=False): bool,
-    vol.Optional("resolve_title", default=""): str,
+    # repeat: 0 = no repeat, >0 = repeat every N minutes indefinitely
+    vol.Optional("repeat", default=0): vol.All(vol.Coerce(int), vol.Range(min=0)),
     vol.Optional("resolve_message", default=""): str,
     vol.Optional("resolve_data"): vol.Any(None, dict),
 }
@@ -75,12 +65,10 @@ async def ws_list_alerts(hass, connection, msg):
         connection.send_result(msg["id"], {
             "alerts": manager.list_alerts(),
             "categories": manager.list_categories(),
-            "auto_quit_defaults": AUTO_QUIT_DEFAULTS,
             "notification_defaults": {
                 "title": NOTIF_DEFAULT_TITLE,
                 "message": NOTIF_DEFAULT_MESSAGE,
                 "resolve_message": NOTIF_DEFAULT_RESOLVE_MESSAGE,
-                "repeat_interval_sec": NOTIF_DEFAULT_REPEAT_INTERVAL_SEC,
             },
         })
     except Exception:
@@ -94,9 +82,7 @@ async def ws_list_alerts(hass, connection, msg):
     vol.Required("name"): str,
     vol.Optional("entity_id"): str,
     vol.Optional("description"): str,
-    vol.Optional("level", default="info"): vol.In(VALID_LEVELS),
     vol.Required("condition"): str,
-    vol.Optional("auto_quit"): vol.Any(None, bool),
     vol.Optional("category_id"): vol.Any(None, str),
     vol.Optional("category_name"): vol.Any(None, str),
     vol.Optional("notification"): vol.Schema(NOTIFICATION_SCHEMA),
@@ -110,9 +96,7 @@ async def ws_create_alert(hass, connection, msg):
             "name": msg["name"],
             "entity_id": msg.get("entity_id"),
             "description": msg.get("description"),
-            "level": msg.get("level", "info"),
             "condition": msg["condition"],
-            "auto_quit": msg.get("auto_quit"),
             "category_id": msg.get("category_id"),
             "category_name": msg.get("category_name"),
             "notification": msg.get("notification"),
@@ -131,9 +115,7 @@ async def ws_create_alert(hass, connection, msg):
     vol.Required("alert_uid"): str,
     vol.Optional("entity_id"): str,
     vol.Optional("name"): str,
-    vol.Optional("level"): vol.In(VALID_LEVELS),
     vol.Optional("condition"): str,
-    vol.Optional("auto_quit"): vol.Any(None, bool),
     vol.Optional("category_id"): vol.Any(None, str),
     vol.Optional("category_name"): vol.Any(None, str),
     vol.Optional("description"): str,
@@ -145,7 +127,7 @@ async def ws_update_alert(hass, connection, msg):
     try:
         manager = hass.data[DOMAIN]["manager"]
         data = {}
-        for key in ("entity_id", "name", "level", "condition", "auto_quit", "category_id", "category_name", "description", "notification"):
+        for key in ("entity_id", "name", "condition", "category_id", "category_name", "description", "notification"):
             if key in msg:
                 data[key] = msg[key]
         result = await manager.async_update_alert(msg["alert_uid"], data)
@@ -272,7 +254,6 @@ async def ws_notify_services(hass, connection, msg):
     vol.Optional("is_resolve", default=False): bool,
     # Context fields for Jinja2 rendering
     vol.Optional("context_name", default="Test Alert"): str,
-    vol.Optional("context_level", default="info"): str,
     vol.Optional("context_condition", default=""): str,
     vol.Optional("context_entity_id", default="binary_sensor.ha_alerts_test"): str,
 })
@@ -282,11 +263,9 @@ async def ws_test_notification(hass, connection, msg):
     try:
         variables = {
             "name": msg.get("context_name", "Test Alert"),
-            "level": msg.get("context_level", "info"),
             "condition": msg.get("context_condition", ""),
             "entity_id": msg.get("context_entity_id", "binary_sensor.ha_alerts_test"),
             "alert_id": msg.get("context_entity_id", "binary_sensor.ha_alerts_test").replace("binary_sensor.", "", 1),
-            "count": 1,
             "triggered_at": dt_util.utcnow(),
         }
 
