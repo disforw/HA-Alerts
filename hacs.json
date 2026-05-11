@@ -1,5 +1,5 @@
 {
-  "name": "HA Alerts",
-  "content_in_root": false,
-  "render_readme": true
+    "name": "AlertSys",
+    "homeassistant": "2024.1.0",
+    "render_readme": true
 }

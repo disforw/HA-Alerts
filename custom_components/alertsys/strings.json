@@ -1,0 +1,55 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "AlertSys",
+        "description": "Enable the AlertSys alert management integration."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "AlertSys is already configured."
+    }
+  },
+  "services": {
+    "quit": {
+      "name": "Quit alert",
+      "description": "Reset alert to idle state. Only works if the alert condition is no longer active. Without an entity, quit all alerts.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity",
+          "description": "The alert entity to quit. Leave empty for all alerts."
+        }
+      }
+    },
+    "ack": {
+      "name": "Acknowledge alert",
+      "description": "Acknowledge an active alert. The alert stays active but is marked as acknowledged.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity",
+          "description": "The alert entity to acknowledge."
+        }
+      }
+    },
+    "unack": {
+      "name": "Revoke acknowledgement",
+      "description": "Revoke acknowledgement on an active alert.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity",
+          "description": "The alert entity to revoke acknowledgement from."
+        }
+      }
+    },
+    "ack_toggle": {
+      "name": "Toggle acknowledgement",
+      "description": "Toggle the acknowledgement state of an active alert. If acknowledged, revokes it; if not, acknowledges it.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity",
+          "description": "The alert entity to toggle acknowledgement on."
+        }
+      }
+    }
+  }
+}

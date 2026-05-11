@@ -1,0 +1,55 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "AlertSys",
+        "description": "Az AlertSys riasztáskezelő integráció engedélyezése."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Az AlertSys már konfigurálva van."
+    }
+  },
+  "services": {
+    "quit": {
+      "name": "Riasztás nyugtázása",
+      "description": "Riasztás visszaállítása alapállapotba. Csak akkor működik, ha a riasztási feltétel már nem aktív. Entitás megadása nélkül az összes riasztást nyugtázza.",
+      "fields": {
+        "entity_id": {
+          "name": "Entitás",
+          "description": "A nyugtázandó riasztás entitása. Hagyja üresen az összes riasztás nyugtázásához."
+        }
+      }
+    },
+    "ack": {
+      "name": "Riasztás tudomásulvétele",
+      "description": "Aktív riasztás tudomásulvétele. A riasztás aktív marad, de tudomásul vettként lesz jelölve.",
+      "fields": {
+        "entity_id": {
+          "name": "Entitás",
+          "description": "A tudomásul veendő riasztás entitása."
+        }
+      }
+    },
+    "unack": {
+      "name": "Tudomásulvétel visszavonása",
+      "description": "Tudomásulvétel visszavonása egy aktív riasztáson.",
+      "fields": {
+        "entity_id": {
+          "name": "Entitás",
+          "description": "A riasztás entitása, amelyről a tudomásulvételt el kívánja távolítani."
+        }
+      }
+    },
+    "ack_toggle": {
+      "name": "Tudomásulvétel váltása",
+      "description": "Aktív riasztás tudomásulvételi állapotának váltása. Ha tudomásul van véve, visszavonja; ha nincs, tudomásul veszi.",
+      "fields": {
+        "entity_id": {
+          "name": "Entitás",
+          "description": "A riasztás entitása, amelyen a tudomásulvételt váltani kívánja."
+        }
+      }
+    }
+  }
+}
