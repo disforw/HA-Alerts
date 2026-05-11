@@ -92,7 +92,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Register as built-in panel (HACS-style, stays mounted across WS reconnect)
     frontend.async_register_built_in_panel(
         hass,
-        component_name=DOMAIN,  # -> <ha-panel-ha-alerts>
+        component_name=DOMAIN.replace("_", "-"),  # -> <ha-panel-ha-alerts>
         sidebar_title="Alert Manager",
         sidebar_icon="mdi:alert-box-outline",
         frontend_url_path=DOMAIN,  # -> /ha_alerts
