@@ -51,6 +51,7 @@ class AlertEntity(BinarySensorEntity, RestoreEntity):
         manager: HaAlertsManager,
         notification_config: dict | None = None,
         description: str = "",
+        enabled: bool = True,
     ) -> None:
         self.hass = hass
         self._uid = uid
@@ -63,6 +64,7 @@ class AlertEntity(BinarySensorEntity, RestoreEntity):
         self._active = False
         self._condition_met = False
         self._ack = False
+        self._enabled = enabled
 
         # Condition tracking
         self._is_template = is_template_string(condition_config)
@@ -96,6 +98,7 @@ class AlertEntity(BinarySensorEntity, RestoreEntity):
             ATTR_CONDITION: self._condition_met,
             ATTR_ACK: self._ack,
             ATTR_DESCRIPTION: self._description,
+            ATTR_ENABLED: self._enabled,
         }
 
     @property
@@ -130,7 +133,7 @@ class AlertEntity(BinarySensorEntity, RestoreEntity):
 
     def _setup_template_tracking(self) -> None:
         """Track a template condition."""
-        track = TrackTemplate(self._template, None, None)
+        track = TrackTemplate(self._template, None, None, parse_result=False)
 
         def _noop_log_fn(_level: int, _message: str) -> None:
             return
@@ -183,6 +186,8 @@ class AlertEntity(BinarySensorEntity, RestoreEntity):
     @callback
     def _update_condition(self, new_condition: bool) -> None:
         """Handle condition state change and apply lifecycle rules."""
+        if not self._enabled:
+            return
         old_condition = self._condition_met
         self._condition_met = new_condition
 
@@ -222,6 +227,22 @@ class AlertEntity(BinarySensorEntity, RestoreEntity):
         self._triggered_at = None
         self.async_write_ha_state()
         return True
+
+    def enable(self) -> None:
+        """Enable (arm) the alert. Evaluates condition immediately."""
+        self._enabled = True
+        self.async_write_ha_state()
+        # Evaluate current condition immediately — if already true, fire now
+        if self._condition_met and not self._active:
+            self._update_condition(True)
+
+    def disable(self) -> None:
+        """Disable (disarm) the alert."""
+        self._enabled = False
+        self._stop_notification_timer()
+        self._active = False
+        self._ack = False
+        self.async_write_ha_state()
 
     def ack(self) -> bool:
         """Acknowledge the alert."""
@@ -367,7 +388,7 @@ class AlertEntity(BinarySensorEntity, RestoreEntity):
                 "alert_id": alert_id,
                 "alert_uid": self._uid,
                 "triggered_at": self._triggered_at,
-            })
+            }, parse_result=False)
         except Exception:
             _LOGGER.exception("Failed to render template for %s", self.entity_id)
             return template_str

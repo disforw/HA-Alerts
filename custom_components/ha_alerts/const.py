@@ -13,11 +13,13 @@ CONF_CONDITION = "condition"
 CONF_REPEAT = "repeat"  # minutes; 0 = no repeat
 CONF_CATEGORY_ID = "category_id"
 CONF_DESCRIPTION = "description"
+CONF_ENABLED = "enabled"
 
 # Entity attributes
 ATTR_CONDITION = "condition"
 ATTR_ACK = "ack"
 ATTR_DESCRIPTION = "description"
+ATTR_ENABLED = "enabled"
 
 # Service names
 SERVICE_QUIT = "quit"

@@ -43,6 +43,7 @@ async def async_setup_entry(
             manager=manager,
             notification_config=alert_def.get("notification"),
             description=alert_def.get("description", ""),
+            enabled=alert_def.get("enabled", True),
         )
         alert_entities.append(entity)
 

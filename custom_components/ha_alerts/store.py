@@ -347,6 +347,7 @@ class HaAlertsManager:
             "category_id": category_id,
             "notification": notification,
             "description": description,
+            "enabled": True,
         }
         self.store.set_alert(alert_uid, alert_def)
         await self.store.async_save()
@@ -403,6 +404,7 @@ class HaAlertsManager:
             "category_id": category_id,
             "notification": notification,
             "description": description,
+            "enabled": existing.get("enabled", True),
         }
 
         self.store.set_alert(alert_uid, alert_def)

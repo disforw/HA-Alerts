@@ -52,6 +52,9 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_get_translations)
     websocket_api.async_register_command(hass, ws_entity_id_suggest)
     websocket_api.async_register_command(hass, ws_entity_id_check)
+    websocket_api.async_register_command(hass, ws_enable_alert)
+    websocket_api.async_register_command(hass, ws_disable_alert)
+    websocket_api.async_register_command(hass, ws_trigger_alert)
 
 
 @websocket_api.require_admin
@@ -382,6 +385,78 @@ def _read_json_file(file_path: Path) -> dict:
         _LOGGER.error("Failed to read translation file %s: %s", file_path, e)
         return {}
 
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({
+    vol.Required("type"): "ha_alerts/alert/enable",
+    vol.Required("alert_uid"): str,
+})
+@websocket_api.async_response
+async def ws_enable_alert(hass, connection, msg):
+    """Enable (arm) an alert."""
+    try:
+        manager = hass.data[DOMAIN]["manager"]
+        existing = manager.store.get_alert(msg["alert_uid"])
+        if existing is None:
+            connection.send_error(msg["id"], "not_found", "Alert not found")
+            return
+        existing["enabled"] = True
+        manager.store.set_alert(msg["alert_uid"], existing)
+        await manager.store.async_save()
+        entity = manager.get_alert_entity(msg["alert_uid"])
+        if entity:
+            entity.enable()
+        connection.send_result(msg["id"], {"success": True})
+    except Exception:
+        _LOGGER.exception("Failed to enable alert '%s'", msg.get("alert_uid"))
+        connection.send_error(msg["id"], "unknown_error", "Failed to enable alert")
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({
+    vol.Required("type"): "ha_alerts/alert/disable",
+    vol.Required("alert_uid"): str,
+})
+@websocket_api.async_response
+async def ws_disable_alert(hass, connection, msg):
+    """Disable (disarm) an alert."""
+    try:
+        manager = hass.data[DOMAIN]["manager"]
+        existing = manager.store.get_alert(msg["alert_uid"])
+        if existing is None:
+            connection.send_error(msg["id"], "not_found", "Alert not found")
+            return
+        existing["enabled"] = False
+        manager.store.set_alert(msg["alert_uid"], existing)
+        await manager.store.async_save()
+        entity = manager.get_alert_entity(msg["alert_uid"])
+        if entity:
+            entity.disable()
+        connection.send_result(msg["id"], {"success": True})
+    except Exception:
+        _LOGGER.exception("Failed to disable alert '%s'", msg.get("alert_uid"))
+        connection.send_error(msg["id"], "unknown_error", "Failed to disable alert")
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({
+    vol.Required("type"): "ha_alerts/alert/trigger",
+    vol.Required("alert_uid"): str,
+})
+@websocket_api.async_response
+async def ws_trigger_alert(hass, connection, msg):
+    """Manually trigger an alert's notification."""
+    try:
+        manager = hass.data[DOMAIN]["manager"]
+        existing = manager.store.get_alert(msg["alert_uid"])
+        if existing is None:
+            connection.send_error(msg["id"], "not_found", "Alert not found")
+            return
+        entity = manager.get_alert_entity(msg["alert_uid"])
+        if entity:
+            hass.async_create_task(entity._async_send_notification())
+        connection.send_result(msg["id"], {"success": True})
+    except Exception:
+        _LOGGER.exception("Failed to trigger alert '%s'", msg.get("alert_uid"))
+        connection.send_error(msg["id"], "unknown_error", "Failed to trigger alert")
 
 @websocket_api.require_admin
 @websocket_api.websocket_command({
