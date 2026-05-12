@@ -15,6 +15,7 @@ import logging
 import re
 import unicodedata
 import asyncio
+import uuid
 from typing import Any
 
 from homeassistant.core import HomeAssistant, callback
