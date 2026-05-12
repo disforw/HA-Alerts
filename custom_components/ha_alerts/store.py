@@ -471,8 +471,8 @@ class HaAlertsManager:
                 name=name,
                 condition_config=condition.strip(),
                 manager=self,
-				enabled=alert_def.get("enabled", True),
-
+                notification_config=notification,
+                enabled=alert_def.get("enabled", True),
             )
             self._async_add_entities_cb([entity])
 

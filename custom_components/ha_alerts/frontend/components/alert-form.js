@@ -176,6 +176,12 @@ export function bindAlertForm(panel) {
     panel._updateSaveBtn?.();
   });
 
+  const repeatInput = root.querySelector("#f-notif-repeat");
+  const normalizeRepeat = () => {
+    if (!repeatInput) return;
+    const v = parseInt(repeatInput.value || "0", 10);
+    if (isNaN(v) || v < 0) repeatInput.value = "0";
+  };
   repeatInput?.addEventListener("blur", normalizeRepeat);
   repeatInput?.addEventListener("change", normalizeRepeat);
 
