@@ -29,12 +29,12 @@ _LOGGER = logging.getLogger(__name__)
 NOTIFICATION_SCHEMA = {
     vol.Optional("enabled", default=False): bool,
     vol.Optional("targets", default=[]): [str],
-    vol.Optional("title", default=""): str,
-    vol.Optional("message", default=""): str,
+    vol.Optional("title", default=""): vol.All(str, vol.Length(max=65536)),
+    vol.Optional("message", default=""): vol.All(str, vol.Length(max=65536)),
     vol.Optional("data"): vol.Any(None, dict),
     # repeat: 0 = no repeat, >0 = repeat every N minutes indefinitely
     vol.Optional("repeat", default=0): vol.All(vol.Coerce(int), vol.Range(min=0)),
-    vol.Optional("resolve_message", default=""): str,
+    vol.Optional("resolve_message", default=""): vol.All(str, vol.Length(max=65536)),
     # skip_first: wait for first repeat interval before sending when repeat is enabled
     vol.Optional("skip_first", default=False): bool,
 }
@@ -83,14 +83,14 @@ async def ws_list_alerts(hass, connection, msg):
 
 @websocket_api.require_admin
 @websocket_api.websocket_command({
-    vol.Required("type"): "ha_alerts/alert/create",
-    vol.Required("name"): str,
-    vol.Optional("entity_id"): str,
-    vol.Optional("description"): str,
-    vol.Required("condition"): str,
-    vol.Optional("category_id"): vol.Any(None, str),
-    vol.Optional("category_name"): vol.Any(None, str),
-    vol.Optional("notification"): vol.Schema(NOTIFICATION_SCHEMA),
+    vol.Required("type") : "ha_alerts/alert/create",
+    vol.Required("name") : vol.All(str, vol.Length(max=65536)),
+    vol.Optional("entity_id") : vol.All(str, vol.Length(max=65536)),
+    vol.Optional("description") : vol.All(str, vol.Length(max=65536)),
+    vol.Required("condition") : vol.All(str, vol.Length(max=65536)),
+    vol.Optional("category_id") : vol.Any(None, str, vol.Length(max=65536)),
+    vol.Optional("category_name") : vol.Any(None, str, vol.Length(max=65536)),
+    vol.Optional("notification") : vol.Schema(NOTIFICATION_SCHEMA),
 })
 @websocket_api.async_response
 async def ws_create_alert(hass, connection, msg):
@@ -117,13 +117,13 @@ async def ws_create_alert(hass, connection, msg):
 @websocket_api.require_admin
 @websocket_api.websocket_command({
     vol.Required("type"): "ha_alerts/alert/update",
-    vol.Required("alert_uid"): str,
-    vol.Optional("entity_id"): str,
-    vol.Optional("name"): str,
-    vol.Optional("condition"): str,
-    vol.Optional("category_id"): vol.Any(None, str),
-    vol.Optional("category_name"): vol.Any(None, str),
-    vol.Optional("description"): str,
+    vol.Required("alert_uid"): vol.All(str, vol.Length(max=65536)),
+    vol.Optional("entity_id"): vol.All(str, vol.Length(max=65536)),
+    vol.Optional("name"): vol.All(str, vol.Length(max=65536)),
+    vol.Optional("condition"): vol.All(str, vol.Length(max=65536)),
+    vol.Optional("category_id"): vol.Any(None, str, vol.Length(max=65536)),
+    vol.Optional("category_name"): vol.Any(None, str, vol.Length(max=65536)),
+    vol.Optional("description"): vol.All(str, vol.Length(max=65536)),
     vol.Optional("notification"): vol.Schema(NOTIFICATION_SCHEMA),
 })
 @websocket_api.async_response

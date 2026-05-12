@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 import re
 import unicodedata
-import uuid
+import asyncio
 from typing import Any
 
 from homeassistant.core import HomeAssistant, callback
@@ -133,6 +133,7 @@ class HaAlertsStore:
         self._hass = hass
         self._store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
         self._data: dict[str, Any] = {"alerts": {}, "categories": {}}
+        self._save_lock = asyncio.Lock()
 
     async def async_load(self) -> None:
         """Load data from disk."""
@@ -148,7 +149,8 @@ class HaAlertsStore:
 
     async def async_save(self) -> None:
         """Persist data to disk."""
-        await self._store.async_save(self._data)
+        async with self._save_lock:
+            await self._store.async_save(self._data)
 
     @property
     def alerts(self) -> dict[str, dict]:
@@ -254,12 +256,21 @@ class HaAlertsManager:
 
     async def async_get_entity_id(self, alert_uid: str) -> str | None:
         """Get current entity_id for a UID from the entity registry."""
-        return self._registry().async_get_entity_id(ALERT_ENTITY_DOMAIN, DOMAIN, alert_uid)
+        try:
+            return self._registry().async_get_entity_id(ALERT_ENTITY_DOMAIN, DOMAIN, alert_uid)
+        except Exception:
+            _LOGGER.exception("Failed to get entity_id for alert %s from entity registry", alert_uid)
+            return None
 
     async def async_entity_id_available(self, entity_id: str, exclude_uid: str | None = None) -> bool:
         """Check entity_id availability in the entity registry."""
         entity_id = _normalize_entity_id(entity_id)
-        entry = self._registry().async_get(entity_id)
+        try:
+            entry = self._registry().async_get(entity_id)
+        except Exception:
+            _LOGGER.exception("Failed to check availability for entity_id %s", entity_id)
+            return False
+        
         if entry is None:
             return True
         if exclude_uid and entry.domain == ALERT_ENTITY_DOMAIN and entry.platform == DOMAIN and entry.unique_id == exclude_uid:
@@ -283,37 +294,40 @@ class HaAlertsManager:
 
     async def async_create_registry_entry(self, alert_uid: str, name: str, entity_id: str | None = None, *, strict: bool = False) -> str:
         """Ensure registry entry exists for UID, optionally targeting a specific entity_id."""
-        reg = self._registry()
+        try:
+            reg = self._registry()
+            current = reg.async_get_entity_id(ALERT_ENTITY_DOMAIN, DOMAIN, alert_uid)
+            if current and entity_id is None:
+                return current
 
-        current = reg.async_get_entity_id(ALERT_ENTITY_DOMAIN, DOMAIN, alert_uid)
-        if current and entity_id is None:
-            return current
+            if entity_id is not None:
+                entity_id = _normalize_entity_id(entity_id)
+                if not _validate_entity_id(entity_id):
+                    raise ValueError("Invalid entity_id format")
+                if not await self.async_entity_id_available(entity_id, exclude_uid=alert_uid):
+                    raise ValueError("Entity ID already exists")
+                object_id = _object_id_from_entity_id(entity_id)
+            else:
+                entity_id = await self.async_suggest_entity_id(name, exclude_uid=alert_uid)
+                object_id = _object_id_from_entity_id(entity_id)
 
-        if entity_id is not None:
-            entity_id = _normalize_entity_id(entity_id)
-            if not _validate_entity_id(entity_id):
-                raise ValueError("Invalid entity_id format")
-            if not await self.async_entity_id_available(entity_id, exclude_uid=alert_uid):
-                raise ValueError("Entity ID already exists")
-            object_id = _object_id_from_entity_id(entity_id)
-        else:
-            entity_id = await self.async_suggest_entity_id(name, exclude_uid=alert_uid)
-            object_id = _object_id_from_entity_id(entity_id)
+            entry = reg.async_get_or_create(
+                domain=ALERT_ENTITY_DOMAIN,
+                platform=DOMAIN,
+                unique_id=alert_uid,
+                config_entry=self._config_entry,
+                suggested_object_id=object_id,
+                original_name=name,
+            )
 
-        entry = reg.async_get_or_create(
-            domain=ALERT_ENTITY_DOMAIN,
-            platform=DOMAIN,
-            unique_id=alert_uid,
-            config_entry=self._config_entry,
-            suggested_object_id=object_id,
-            original_name=name,
-        )
+            # If user requested a specific entity_id, enforce it strictly.
+            if strict and entity_id and entry.entity_id != entity_id:
+                raise ValueError("Entity ID could not be reserved")
 
-        # If user requested a specific entity_id, enforce it strictly.
-        if strict and entity_id and entry.entity_id != entity_id:
-            raise ValueError("Entity ID could not be reserved")
-
-        return entry.entity_id
+            return entry.entity_id
+        except Exception:
+            _LOGGER.exception("Failed to create registry entry for alert %s", alert_uid)
+            raise
 
     async def async_rename_entity_id(self, alert_uid: str, new_entity_id: str) -> str:
         """Rename the entity_id for a UID via the entity registry."""

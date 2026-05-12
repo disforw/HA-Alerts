@@ -131,18 +131,21 @@ def _register_services(
 
     @callback
     def handle_quit(call: ServiceCall) -> None:
-        entity_ids = call.data.get("entity_id")
-        alerts = manager.alert_entities
+        try:
+            entity_ids = call.data.get("entity_id")
+            alerts = manager.alert_entities
 
-        if entity_ids:
-            if isinstance(entity_ids, str):
-                entity_ids = [entity_ids]
-            targets = [a for a in alerts if a.entity_id in entity_ids]
-        else:
-            targets = alerts
+            if entity_ids:
+                if isinstance(entity_ids, str):
+                    entity_ids = [entity_ids]
+                targets = [a for a in alerts if a.entity_id in entity_ids]
+            else:
+                targets = alerts
 
-        for alert in targets:
-            alert.quit()
+            for alert in targets:
+                alert.quit()
+        except Exception:
+            _LOGGER.exception("Error in handle_quit service")
 
     hass.services.async_register(
         DOMAIN,
@@ -163,8 +166,11 @@ def _register_services(
 
     @callback
     def handle_ack(call: ServiceCall) -> None:
-        for alert in _resolve_alert_targets(call.data["entity_id"]):
-            alert.ack()
+        try:
+            for alert in _resolve_alert_targets(call.data["entity_id"]):
+                alert.ack()
+        except Exception:
+            _LOGGER.exception("Error in handle_ack service")
 
     hass.services.async_register(
         DOMAIN,
@@ -179,8 +185,11 @@ def _register_services(
 
     @callback
     def handle_unack(call: ServiceCall) -> None:
-        for alert in _resolve_alert_targets(call.data["entity_id"]):
-            alert.unack()
+        try:
+            for alert in _resolve_alert_targets(call.data["entity_id"]):
+                alert.unack()
+        except Exception:
+            _LOGGER.exception("Error in handle_unack service")
 
     hass.services.async_register(
         DOMAIN,
@@ -195,8 +204,11 @@ def _register_services(
     
     @callback
     def handle_ack_toggle(call: ServiceCall) -> None:
-        for alert in _resolve_alert_targets(call.data["entity_id"]):
-            alert.ack_toggle()
+        try:
+            for alert in _resolve_alert_targets(call.data["entity_id"]):
+                alert.ack_toggle()
+        except Exception:
+            _LOGGER.exception("Error in handle_ack_toggle service")
 
     hass.services.async_register(
         DOMAIN,
