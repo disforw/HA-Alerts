@@ -25,15 +25,23 @@ async def async_setup_entry(
 
     manager.set_add_entities_callback(async_add_entities)
 
+    manager.set_entity_factory(
+        lambda **kw: AlertEntity(**kw)
+    )
+
     alert_entities = []
     for alert_uid, alert_def in store.alerts.items():
         try:
             await manager.async_create_registry_entry(
                 alert_uid, name=alert_def.get("name", "Alert")
             )
-        except Exception as exc:
+        except ValueError as exc:
             _LOGGER.warning(
                 "Failed to ensure registry entry for %s: %s", alert_uid, exc
+            )
+        except Exception:
+            _LOGGER.exception(
+                "Unexpected error ensuring registry entry for %s", alert_uid
             )
         entity = AlertEntity(
             hass=hass,

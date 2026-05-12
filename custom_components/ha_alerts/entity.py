@@ -244,6 +244,10 @@ class AlertEntity(BinarySensorEntity, RestoreEntity):
         self._ack = False
         self.async_write_ha_state()
 
+    async def async_trigger_notification(self) -> None:
+        """Send notification immediately. Public wrapper around internal method."""
+        await self._async_send_notification()
+
     def ack(self) -> bool:
         """Acknowledge the alert."""
         if not self._active:

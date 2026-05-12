@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from pathlib import Path
 
 import voluptuous as vol
@@ -13,6 +12,8 @@ from homeassistant.exceptions import TemplateError
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.template import Template
 from homeassistant.util import dt as dt_util
+
+from .store import _validate_entity_id
 
 from .const import (
     ALERT_ENTITY_DOMAIN,
@@ -194,8 +195,7 @@ async def ws_entity_id_check(hass, connection, msg):
     try:
         manager = hass.data[DOMAIN]["manager"]
         entity_id = (msg.get("entity_id") or "").strip().lower()
-        # Official form only: binary_sensor.ha_alerts_<object_id>
-        valid = bool(re.fullmatch(rf"{ALERT_ENTITY_DOMAIN}\.{ALERT_OBJECT_ID_PREFIX}[a-z0-9_]+", entity_id))
+        valid = _validate_entity_id(entity_id)
         if not valid:
             connection.send_result(msg["id"], {
                 "valid": False,
@@ -452,7 +452,7 @@ async def ws_trigger_alert(hass, connection, msg):
             return
         entity = manager.get_alert_entity(msg["alert_uid"])
         if entity:
-            hass.async_create_task(entity._async_send_notification())
+            await entity.async_trigger_notification()
         connection.send_result(msg["id"], {"success": True})
     except Exception:
         _LOGGER.exception("Failed to trigger alert '%s'", msg.get("alert_uid"))

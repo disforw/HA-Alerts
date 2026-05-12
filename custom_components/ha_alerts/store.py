@@ -75,6 +75,30 @@ def _object_id_from_entity_id(entity_id: str) -> str:
     return _normalize_entity_id(entity_id).split(".", 1)[1]
 
 
+def _validate_notification(notification: dict) -> str | None:
+    """Validate a notification config dict. Returns error message or None."""
+    if not isinstance(notification, dict):
+        return "Notification must be a dict"
+    if "enabled" in notification and not isinstance(notification["enabled"], bool):
+        return "notification.enabled must be a boolean"
+    if "targets" in notification:
+        if not isinstance(notification["targets"], list):
+            return "notification.targets must be a list"
+        if not all(isinstance(t, str) for t in notification["targets"]):
+            return "notification.targets must be a list of strings"
+    if "repeat" in notification:
+        repeat = notification["repeat"]
+        if not isinstance(repeat, int) or isinstance(repeat, bool) or repeat < 0:
+            return "notification.repeat must be a non-negative integer"
+    for field in ("title", "message", "resolve_message"):
+        if field in notification and not isinstance(notification[field], str):
+            return f"notification.{field} must be a string"
+    if "data" in notification and notification["data"] is not None:
+        if not isinstance(notification["data"], dict):
+            return "notification.data must be a dict or null"
+    return None
+
+
 def _validate_condition(condition: str, hass: HomeAssistant | None = None) -> str | None:
     """Validate condition string. Returns an error message or None if valid.
 
@@ -185,10 +209,15 @@ class HaAlertsManager:
         # Runtime entity tracking (populated by entity platform)
         self._alert_entities: dict[str, Any] = {}  # uid -> AlertEntity
         self._async_add_entities_cb = None  # set by entity platform
+        self._entity_factory_cb = None  # set by entity platform
 
     def set_add_entities_callback(self, cb) -> None:
         """Set the async_add_entities callback from the platform setup."""
         self._async_add_entities_cb = cb
+
+    def set_entity_factory(self, cb) -> None:
+        """Set the entity factory callback from the platform setup."""
+        self._entity_factory_cb = cb
 
     @callback
     def register_alert_entity(self, alert_uid: str, entity) -> None:
@@ -313,7 +342,6 @@ class HaAlertsManager:
 
     async def async_create_alert(self, data: dict) -> dict:
         """Create a new alert. Returns the full alert dict with uid + entity_id."""
-        from .entity import AlertEntity  # avoid circular import
 
         name = data["name"].strip()
         if not name:
@@ -330,6 +358,9 @@ class HaAlertsManager:
             self.store.set_category(category_id, {"name": cat_name})
 
         notification = data.get("notification") or {}
+        notif_err = _validate_notification(notification)
+        if notif_err:
+            raise ValueError(notif_err)
 
         description = (data.get("description") or "").strip()
         if len(description) > 255:
@@ -352,8 +383,8 @@ class HaAlertsManager:
         self.store.set_alert(alert_uid, alert_def)
         await self.store.async_save()
 
-        if self._async_add_entities_cb:
-            entity = AlertEntity(
+        if self._async_add_entities_cb and self._entity_factory_cb:
+            entity = self._entity_factory_cb(
                 hass=self.hass,
                 uid=alert_uid,
                 name=name,
@@ -368,7 +399,6 @@ class HaAlertsManager:
 
     async def async_update_alert(self, alert_uid: str, data: dict) -> dict:
         """Update an existing alert."""
-        from .entity import AlertEntity
 
         existing = self.store.get_alert(alert_uid)
         if existing is None:
@@ -390,6 +420,9 @@ class HaAlertsManager:
             self.store.set_category(category_id, {"name": cat_name})
 
         notification = data.get("notification", existing.get("notification", {})) or {}
+        notif_err = _validate_notification(notification)
+        if notif_err:
+            raise ValueError(notif_err)
 
         description = (data.get("description", existing.get("description", "")) or "").strip()
         if len(description) > 255:
@@ -417,14 +450,14 @@ class HaAlertsManager:
             self.unregister_alert_entity(alert_uid)
 
         if self._async_add_entities_cb:
-            entity = AlertEntity(
+            entity = self._entity_factory_cb(
                 hass=self.hass,
                 uid=alert_uid,
                 name=name,
                 condition_config=condition.strip(),
                 manager=self,
-                notification_config=notification,
-                description=description,
+				enabled=alert_def.get("enabled", True),
+
             )
             self._async_add_entities_cb([entity])
 
