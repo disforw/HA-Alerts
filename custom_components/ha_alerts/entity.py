@@ -134,7 +134,7 @@ class AlertEntity(BinarySensorEntity, RestoreEntity):
 
     def _setup_template_tracking(self) -> None:
         """Track a template condition."""
-        track = TrackTemplate(self._template, None, None, parse_result=False)
+        track = TrackTemplate(self._template, None, None)
 
         def _noop_log_fn(_level: int, _message: str) -> None:
             return
