@@ -93,7 +93,7 @@ export const STYLES = `
         color: var(--text-secondary);
         flex-shrink: 0;
       }
-      .alert-row--disabled {
+      .alert-row--disabled > :not(.alert-menu-wrap) {
         opacity: 0.5;
       }
       .alert-row--disabled .alert-name {
