@@ -2,6 +2,8 @@ import { testNotification, suggestEntityId, checkEntityId } from "../api/ws.js";
 import { bindTemplateStatus } from "../api/templates.js";
 import { renderCategoryOptions } from "./category-select.js";
 
+const safeId = (str) => String(str).replace(/[^a-zA-Z0-9_-]/g, '_');
+
 export function renderAlertForm(panel) {
   const a = panel._editingAlert;
   const isEdit = !!a._isEdit;
@@ -88,7 +90,7 @@ export function renderAlertForm(panel) {
           <div id="notif-target-chips" class="chip-list">${(nc.targets || [])
             .map((tt) => `<span class="chip" data-target="${esc(tt)}">${esc(tt)} <button class="chip-x" data-rm="${esc(tt)}">×</button></span>`)
             .join("")}</div>
-          <div id="notif-target-error" class="error-msg" style="display:${panel._notifyError ? "block" : "none"}; margin:6px 0 0 0">${esc(panel._notifyError || "")}</div>
+          <div id="notif-target-error" class="error-msg" style="display:${panel._notifyError && nc.enabled ? "block" : "none"}; margin:6px 0 0 0">${esc(panel._notifyError || "")}</div>
         </div>
 
         <div class="form-field">
@@ -197,7 +199,7 @@ export function bindAlertForm(panel) {
 
   const addTargetChip = (target) => {
     if (!target || !chipList) return;
-    if (chipList.querySelector(`[data-target="${CSS.escape(target)}"]`)) return;
+    if (chipList.querySelector(`[data-target="${safeId(target)}"]`)) return;
     const chip = document.createElement("span");
     chip.className = "chip";
     chip.dataset.target = target;

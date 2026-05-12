@@ -20,9 +20,15 @@ export function renderAlertRow({ alert, t, esc, enabled }) {
               <ha-icon icon="mdi:pause" style="--mdc-icon-size:18px;"></ha-icon> ${esc(t("btn_disable"))}
             </button>
           `}
-          <button class="menu-item" data-action="trigger" data-id="${alert.id}">
-            <ha-icon icon="mdi:bell-alert" style="--mdc-icon-size:18px;"></ha-icon> ${esc(t("btn_trigger"))}
-          </button>
+          ${alert.active ? `
+            <button class="menu-item" data-action="resolve" data-id="${alert.id}">
+              <ha-icon icon="mdi:check-circle" style="--mdc-icon-size:18px;"></ha-icon> ${esc(t("menu_resolve"))}
+            </button>
+          ` : `
+            <button class="menu-item" data-action="trigger" data-id="${alert.id}">
+              <ha-icon icon="mdi:bell-alert" style="--mdc-icon-size:18px;"></ha-icon> ${esc(t("btn_trigger"))}
+            </button>
+          `}
           <button class="menu-item" data-action="edit" data-id="${alert.id}">
             <ha-icon icon="mdi:pencil" style="--mdc-icon-size:18px;"></ha-icon> ${esc(t("btn_edit"))}
           </button>

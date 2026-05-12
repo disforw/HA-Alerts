@@ -155,10 +155,36 @@ export async function handleListClick(panel, e) {
       statusEl.style.cssText = "position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.8);color:#fff;padding:12px 24px;border-radius:6px;z-index:1000;";
       panel.shadowRoot.appendChild(statusEl);
       setTimeout(() => statusEl.remove(), 2000);
+      await panel._loadData();
     } catch (err) {
       // Show visible error to user
       const statusEl = document.createElement("div");
       statusEl.textContent = t("status_trigger_failed");
+      statusEl.style.cssText = "position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.8);color:var(--error-color);padding:12px 24px;border-radius:6px;z-index:1000;";
+      panel.shadowRoot.appendChild(statusEl);
+      setTimeout(() => statusEl.remove(), 2000);
+    }
+    return true;
+  }
+
+  // Resolve menu action
+  const resolveBtn = e.target.closest('[data-action="resolve"]');
+  if (resolveBtn) {
+    e.stopPropagation();
+    const id = resolveBtn.dataset.id;
+    try {
+      await resolveAlert(panel._hass, id);
+      // Show brief status
+      const statusEl = document.createElement("div");
+      statusEl.textContent = t("status_resolved");
+      statusEl.style.cssText = "position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.8);color:#fff;padding:12px 24px;border-radius:6px;z-index:1000;";
+      panel.shadowRoot.appendChild(statusEl);
+      setTimeout(() => statusEl.remove(), 2000);
+      await panel._loadData();
+    } catch (err) {
+      // Show visible error to user
+      const statusEl = document.createElement("div");
+      statusEl.textContent = t("status_resolve_failed");
       statusEl.style.cssText = "position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.8);color:var(--error-color);padding:12px 24px;border-radius:6px;z-index:1000;";
       panel.shadowRoot.appendChild(statusEl);
       setTimeout(() => statusEl.remove(), 2000);
