@@ -34,6 +34,7 @@ class HaAlertsPanel extends HTMLElement {
     // Live template validity for notification fields (title/message/resolve_*)
     this._notifTplValidity = { title: null, message: null, resolve_message: null };
     this._notifyServices = []; // cached from WS
+    this._notifyError = null; // error message if notify services failed to load
     this._notifDefaults = { title: "", message: "", resolve_message: "" }; // overwritten from backend
     this._translations = {};
     this._translationsLoaded = false;
@@ -263,10 +264,15 @@ class HaAlertsPanel extends HTMLElement {
       if (result.notification_defaults) this._notifDefaults = result.notification_defaults;
       
       // Load notify services in background
+      this._notifyError = null; // Clear previous error
       try {
         const ns = await notifyServices(this._hass);
         this._notifyServices = ns.services || [];
-      } catch (_) { /* ignore if not available */ }
+      } catch (e) {
+        console.warn("HA Alerts: Failed to load notify services", e);
+        this._notifyError = e?.message || "Failed to load notify services";
+        this._notifyServices = [];
+      }
       
       this._render();
     } catch (e) {

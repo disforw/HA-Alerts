@@ -53,7 +53,7 @@ export function renderAlertForm(panel) {
       <div class="form-field">
         <label>${esc(t("field_condition"))}</label>
         <textarea id="f-condition" rows="3" placeholder="${esc(t("ph_condition"))}">${esc(a.condition || "")}</textarea>
-        <div class="condition-preview" id="condition-preview"></div>
+        <div class="tpl-status" id="condition-preview"></div>
       </div>
 
       <div class="form-field">
@@ -88,6 +88,7 @@ export function renderAlertForm(panel) {
           <div id="notif-target-chips" class="chip-list">${(nc.targets || [])
             .map((tt) => `<span class="chip" data-target="${esc(tt)}">${esc(tt)} <button class="chip-x" data-rm="${esc(tt)}">×</button></span>`)
             .join("")}</div>
+          <div id="notif-target-error" class="error-msg" style="display:${panel._notifyError ? "block" : "none"}; margin:6px 0 0 0">${esc(panel._notifyError || "")}</div>
         </div>
 
         <div class="form-field">
@@ -351,9 +352,7 @@ export function bindAlertForm(panel) {
         return { text: t("preview_entity_state", { val: stateObj.state }), cls: "ok", valid: true };
       },
       onValidityChange: (v) => { panel._conditionValid = v; panel._updateSaveBtn(); },
-      baseClass: "condition-preview",
-      okClass: "ok",
-      errorClass: "error",
+
       maxLen: 200,
     });
     if (typeof panel._registerCleanup === "function") panel._registerCleanup(cleanup);
