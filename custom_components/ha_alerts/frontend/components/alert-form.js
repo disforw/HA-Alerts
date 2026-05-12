@@ -47,6 +47,7 @@ export function renderAlertForm(panel) {
       <div class="form-field">
         <label>${esc(t("field_description"))}</label>
         <textarea id="f-description" rows="2" maxlength="255" placeholder="${esc(t("ph_description"))}">${esc(a.description || "")}</textarea>
+        <div class="hint" id="desc-char-count" style="text-align:right">${(a.description || "").length}/255</div>
       </div>
 
       <div class="form-field">
@@ -252,8 +253,10 @@ export function bindAlertForm(panel) {
 
   const descEl = root.querySelector("#f-description");
   if (descEl) {
+    const descCounter = root.querySelector("#desc-char-count");
     descEl.addEventListener("input", () => {
       if (descEl.value.length > 255) descEl.value = descEl.value.slice(0, 255);
+      if (descCounter) descCounter.textContent = `${descEl.value.length}/255`;
     });
   }
 
@@ -308,7 +311,7 @@ export function bindAlertForm(panel) {
   };
 
   if (entInput) {
-    panel._idValid = !a?._isEdit;
+    panel._idValid = a?._isEdit ? false : null;
     entInput.addEventListener("input", () => {
       if (checkTimer) clearTimeout(checkTimer);
       checkTimer = setTimeout(validateEntityId, 300);

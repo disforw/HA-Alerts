@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 
@@ -15,9 +14,6 @@ from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.helpers import config_validation as cv
 
 
-_INTEGRATION_VERSION = json.loads(
-    (Path(__file__).parent / "manifest.json").read_text()
-).get("version", "0")
 
 
 from .const import (
@@ -26,6 +22,7 @@ from .const import (
     SERVICE_ACK_TOGGLE,
     SERVICE_QUIT,
     SERVICE_UNACK,
+    INTEGRATION_VERSION as _INTEGRATION_VERSION,
 )
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)

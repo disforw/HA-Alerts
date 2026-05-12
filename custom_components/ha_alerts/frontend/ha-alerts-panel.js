@@ -152,12 +152,12 @@ class HaAlertsPanel extends HTMLElement {
   async _confirmAndDelete(id) {
     const alertObj = this._alerts.find(a => a.id === id);
     if (!alertObj) return;
-    if (!confirm(this._t("confirm_delete", { name: alertObj.name }))) return;
+    if (!await this._confirmDialog(this._t("confirm_delete", { name: alertObj.name }))) return;
     try {
       await deleteAlert(this._hass, id);
       await this._loadData();
     } catch (err) {
-      window.alert(this._t("err_prefix") + (err.message || err));
+      this._renderError(this._t("err_prefix") + (err.message || err));
     }
   }
 
@@ -396,7 +396,7 @@ class HaAlertsPanel extends HTMLElement {
     if (catSel === "__new__") {
       if (!newCat) { this._showError(this._t("err_category_required")); return; }
       // Create slug from name (NFD strips accents: á→a, ü→u, etc.)
-      category_id = newCat.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+      category_id = newCat.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
       category_name = newCat;
     }
 
@@ -492,6 +492,25 @@ class HaAlertsPanel extends HTMLElement {
       errDiv.textContent = msg;
       errDiv.style.display = "";
     }
+  }
+
+  async _confirmDialog(message) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement("div");
+      overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:999;display:flex;align-items:center;justify-content:center;";
+      const box = document.createElement("div");
+      box.style.cssText = "background:var(--card-background-color,#fff);border-radius:8px;padding:24px;max-width:400px;width:90%;box-shadow:0 4px 24px rgba(0,0,0,.2);";
+      box.innerHTML = `
+        <p style="margin:0 0 16px;font-size:1rem;">${this._esc(message)}</p>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button id="_conf-cancel" style="padding:8px 16px;border:none;border-radius:4px;background:var(--secondary-background-color,#eee);cursor:pointer;">Cancel</button>
+          <button id="_conf-ok" style="padding:8px 16px;border:none;border-radius:4px;background:var(--error-color,#db4437);color:#fff;cursor:pointer;">Delete</button>
+        </div>`;
+      overlay.appendChild(box);
+      this.shadowRoot.appendChild(overlay);
+      box.querySelector("#_conf-ok").onclick = () => { overlay.remove(); resolve(true); };
+      box.querySelector("#_conf-cancel").onclick = () => { overlay.remove(); resolve(false); };
+    });
   }
 
   _closeForm() {
