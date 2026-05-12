@@ -93,7 +93,12 @@ export const STYLES = `
         color: var(--text-secondary);
         flex-shrink: 0;
       }
-      .alert-autoquit.is-default { opacity: 0.65; }
+      .alert-row--disabled {
+        opacity: 0.5;
+      }
+      .alert-row--disabled .alert-name {
+        text-decoration: line-through;
+      }
       .alert-menu-wrap { position: relative; flex-shrink: 0; }
       .icon-btn {
         background: none;

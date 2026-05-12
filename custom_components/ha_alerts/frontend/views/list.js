@@ -1,4 +1,5 @@
 import { renderAlertRow } from "../components/alert-row.js";
+import { enableAlert, disableAlert, triggerAlert } from "../api/ws.js";
 
 export function renderList(panel) {
   const groups = panel._getGrouped();
@@ -9,7 +10,7 @@ export function renderList(panel) {
   let listHtml = "";
   for (const [catId, group] of groupEntries) {
     const alertRows = (group.alerts || [])
-      .map((alert) => renderAlertRow({ alert, t, esc }))
+      .map((alert) => renderAlertRow({ alert, t, esc, enabled: alert.enabled }))
       .join("");
 
     const isEmpty = (group.alerts || []).length === 0;
@@ -109,6 +110,52 @@ export async function handleListClick(panel, e) {
     e.stopPropagation();
     const id = delBtn.dataset.id;
     await panel._confirmAndDelete(id);
+    return true;
+  }
+
+  // Enable/Disable menu actions
+  const enableBtn = e.target.closest('[data-action="enable"]');
+  if (enableBtn) {
+    e.stopPropagation();
+    const id = enableBtn.dataset.id;
+    try {
+      await enableAlert(panel._hass, id);
+      await panel._loadData();
+    } catch (err) {
+      console.error("Failed to enable alert:", err);
+    }
+    return true;
+  }
+
+  const disableBtn = e.target.closest('[data-action="disable"]');
+  if (disableBtn) {
+    e.stopPropagation();
+    const id = disableBtn.dataset.id;
+    try {
+      await disableAlert(panel._hass, id);
+      await panel._loadData();
+    } catch (err) {
+      console.error("Failed to disable alert:", err);
+    }
+    return true;
+  }
+
+  // Trigger menu action
+  const triggerBtn = e.target.closest('[data-action="trigger"]');
+  if (triggerBtn) {
+    e.stopPropagation();
+    const id = triggerBtn.dataset.id;
+    try {
+      await triggerAlert(panel._hass, id);
+      // Show brief status
+      const statusEl = document.createElement("div");
+      statusEl.textContent = t("status_triggered");
+      statusEl.style.cssText = "position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.8);color:#fff;padding:12px 24px;border-radius:6px;z-index:1000;";
+      panel.shadowRoot.appendChild(statusEl);
+      setTimeout(() => statusEl.remove(), 2000);
+    } catch (err) {
+      console.error("Failed to trigger alert:", err);
+    }
     return true;
   }
 

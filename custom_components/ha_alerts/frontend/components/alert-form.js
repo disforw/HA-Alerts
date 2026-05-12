@@ -122,6 +122,14 @@ export function renderAlertForm(panel) {
           <div class="hint">${esc(t("hint_repeat_zero"))}</div>
         </div>
 
+        <div class="form-field" id="skip-first-field" style="display:${nc.repeat > 0 ? 'block' : 'none'}">
+          <label class="checkbox-label">
+            <input type="checkbox" id="f-notif-skip-first" ${nc.skip_first ? "checked" : ""} />
+            ${esc(t("field_skip_first"))}
+          </label>
+          <div class="hint">${esc(t("hint_skip_first"))}</div>
+        </div>
+
         <div class="test-btn-row">
           <button type="button" id="btn-test-notif" class="secondary-btn">
             <ha-icon icon="mdi:send" style="--mdc-icon-size:16px;"></ha-icon> ${esc(t("btn_test_alert"))}
@@ -165,18 +173,21 @@ export function bindAlertForm(panel) {
     panel._updateSaveBtn?.();
   });
 
-  // Repeat field — normalize to non-negative integer
-  const repeatInput = root.querySelector("#f-notif-repeat");
-  const normalizeRepeat = () => {
-    if (!repeatInput) return;
-    const raw = String(repeatInput.value ?? "").trim();
-    if (!raw) return;
-    let v = parseInt(raw, 10);
-    if (!Number.isFinite(v) || v < 0) v = 0;
-    repeatInput.value = String(v);
-  };
   repeatInput?.addEventListener("blur", normalizeRepeat);
   repeatInput?.addEventListener("change", normalizeRepeat);
+
+  // Skip first field — show only when repeat > 0
+  const skipFirstField = root.querySelector("#skip-first-field");
+  const updateSkipFirstVisibility = () => {
+    const currentVal = parseInt(repeatInput?.value || "0", 10) || 0;
+    if (skipFirstField) {
+      skipFirstField.style.display = currentVal > 0 ? "block" : "none";
+    }
+  };
+  repeatInput?.addEventListener("change", updateSkipFirstVisibility);
+  repeatInput?.addEventListener("blur", updateSkipFirstVisibility);
+  // Initialize visibility
+  setTimeout(updateSkipFirstVisibility, 0);
 
   // Target chips add/remove
   const targetSelect = root.querySelector("#f-notif-target-select");

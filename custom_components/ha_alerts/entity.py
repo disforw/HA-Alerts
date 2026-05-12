@@ -285,7 +285,12 @@ class AlertEntity(BinarySensorEntity, RestoreEntity):
             return
 
         self._stop_notification_timer()
-        self.hass.async_create_task(self._async_send_notification())
+        
+        # Check if skip_first is enabled
+        skip_first = nc.get("skip_first", False)
+        if not skip_first:
+            # Send notification immediately if skip_first is False
+            self.hass.async_create_task(self._async_send_notification())
 
         repeat = nc.get("repeat", 0)  # minutes
         if repeat > 0:
@@ -375,6 +380,12 @@ class AlertEntity(BinarySensorEntity, RestoreEntity):
                     "Failed to send resolve notification for %s via notify.%s",
                     self.entity_id, service_name,
                 )
+
+    def _send_resolve_if_needed(self) -> None:
+        """Send resolve notification if resolve_message is configured."""
+        nc = self._notification_config
+        if nc.get("resolve_message"):
+            self.hass.async_create_task(self._async_send_resolve_notification())
 
     def _render_template(self, template_str: str) -> str:
         """Render a Jinja2 template with alert context variables."""

@@ -4,7 +4,9 @@
     "form_title_edit": "Edit Alert: {name}",
     "btn_new": "+ New Alert",
     "btn_retry": "Retry",
-    "btn_back": "← Back",
+    "btn_trigger": "Trigger",
+  "btn_enable": "Enable",
+  "btn_disable": "Disable",
     "btn_edit": "Edit",
     "btn_delete": "Delete",
     "btn_create": "Create",
@@ -35,7 +37,7 @@
     "status_preview": "Preview: ",
     "status_actions": "Actions",
     "status_sending": "Sending...",
-    "status_sent": "Sent!",
+    "status_triggered": "Alert triggered!",
     "status_no_targets": "No targets selected!",
     "empty_no_alerts": "No alerts configured. Click \"{btn_new}\" to create one.",
     "empty_category": "No alerts in this category.",
@@ -68,5 +70,7 @@
     "ph_description": "Optional short description (max 255 chars)",
     "ph_title_optional": "Optional — leave blank to send no title",
     "hint_title_blank": "Leave blank to send no title.",
-    "hint_data_shared": "Applied to both alert and resolve notifications."
+    "hint_data_shared": "Applied to both alert and resolve notifications.",
+    "field_skip_first": "Skip first notification",
+    "hint_skip_first": "When repeat is enabled, wait for the first interval before sending the first notification."
 }

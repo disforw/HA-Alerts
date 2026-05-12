@@ -410,6 +410,7 @@ class HaAlertsPanel extends HTMLElement {
       data: null,
       repeat: parseInt(this.shadowRoot.querySelector("#f-notif-repeat")?.value || "0", 10),
       resolve_message: this.shadowRoot.querySelector("#f-notif-resolve-msg")?.value || "",
+      skip_first: this.shadowRoot.querySelector("#f-notif-skip-first")?.checked || false,
     };
     // Parse shared data JSON if provided
     const dataStr = this.shadowRoot.querySelector("#f-notif-data")?.value?.trim();

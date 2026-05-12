@@ -35,6 +35,8 @@ NOTIFICATION_SCHEMA = {
     # repeat: 0 = no repeat, >0 = repeat every N minutes indefinitely
     vol.Optional("repeat", default=0): vol.All(vol.Coerce(int), vol.Range(min=0)),
     vol.Optional("resolve_message", default=""): str,
+    # skip_first: wait for first repeat interval before sending when repeat is enabled
+    vol.Optional("skip_first", default=False): bool,
 }
 
 

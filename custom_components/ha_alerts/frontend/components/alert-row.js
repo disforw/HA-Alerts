@@ -1,8 +1,8 @@
 // Render a single alert row in the list view.
 
-export function renderAlertRow({ alert, t, esc }) {
+export function renderAlertRow({ alert, t, esc, enabled }) {
   return `
-    <div class="alert-row" data-id="${alert.id}">
+    <div class="alert-row ${enabled === false ? 'alert-row--disabled' : ''}" data-id="${alert.id}">
       <ha-icon icon="mdi:alert-circle-outline" style="--mdc-icon-size:22px; flex-shrink:0;"></ha-icon>
       <span class="alert-name">${esc(alert.name)}</span>
       <span class="alert-condition"><code>${esc(alert.condition)}</code></span>
@@ -11,6 +11,18 @@ export function renderAlertRow({ alert, t, esc }) {
           <ha-icon icon="mdi:dots-vertical" style="--mdc-icon-size:20px;"></ha-icon>
         </button>
         <div class="alert-menu" id="menu-${alert.id}">
+          ${enabled === false ? `
+            <button class="menu-item" data-action="enable" data-id="${alert.id}">
+              <ha-icon icon="mdi:play" style="--mdc-icon-size:18px;"></ha-icon> ${esc(t("btn_enable"))}
+            </button>
+          ` : `
+            <button class="menu-item" data-action="disable" data-id="${alert.id}">
+              <ha-icon icon="mdi:pause" style="--mdc-icon-size:18px;"></ha-icon> ${esc(t("btn_disable"))}
+            </button>
+          `}
+          <button class="menu-item" data-action="trigger" data-id="${alert.id}">
+            <ha-icon icon="mdi:bell-alert" style="--mdc-icon-size:18px;"></ha-icon> ${esc(t("btn_trigger"))}
+          </button>
           <button class="menu-item" data-action="edit" data-id="${alert.id}">
             <ha-icon icon="mdi:pencil" style="--mdc-icon-size:18px;"></ha-icon> ${esc(t("btn_edit"))}
           </button>
