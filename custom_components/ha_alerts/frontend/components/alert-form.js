@@ -91,7 +91,8 @@ export function renderAlertForm(panel) {
 
         <div class="form-field">
           <label>${esc(t("field_title"))}</label>
-          <input type="text" id="f-notif-title" value="${esc(nc.title || "")}" placeholder="${esc(panel._notifDefaults.title)}" />
+          <input type="text" id="f-notif-title" value="${esc(nc.title || "")}" placeholder="${esc(t("ph_title_optional"))}" />
+          <div class="hint">${esc(t("hint_title_blank"))}</div>
           <div class="tpl-status" id="tpl-status-title"></div>
         </div>
 
@@ -102,8 +103,16 @@ export function renderAlertForm(panel) {
         </div>
 
         <div class="form-field">
+          <label>${esc(t("field_resolve_message"))}</label>
+          <textarea id="f-notif-resolve-msg" rows="2" placeholder="${esc(panel._notifDefaults.resolve_message)}">${esc(nc.resolve_message || "")}</textarea>
+          <div class="hint">${esc(t("hint_resolve_message"))}</div>
+          <div class="tpl-status" id="tpl-status-resolve-message"></div>
+        </div>
+
+        <div class="form-field">
           <label>${esc(t("field_data"))}</label>
           <textarea id="f-notif-data" rows="5" placeholder='${esc(t("ph_data_json"))}'>${nc.data ? JSON.stringify(nc.data, null, 2) : ""}</textarea>
+          <div class="hint">${esc(t("hint_data_shared"))}</div>
         </div>
 
         <div class="form-field">
@@ -117,25 +126,6 @@ export function renderAlertForm(panel) {
             <ha-icon icon="mdi:send" style="--mdc-icon-size:16px;"></ha-icon> ${esc(t("btn_test_alert"))}
           </button>
           <span id="test-notif-status" class="hint"></span>
-        </div>
-
-        <div class="form-field">
-          <label>${esc(t("field_resolve_message"))}</label>
-          <textarea id="f-notif-resolve-msg" rows="2" placeholder="${esc(panel._notifDefaults.resolve_message)}">${esc(nc.resolve_message || "")}</textarea>
-          <div class="hint">${esc(t("hint_resolve_message"))}</div>
-          <div class="tpl-status" id="tpl-status-resolve-message"></div>
-        </div>
-
-        <div class="form-field">
-          <label>${esc(t("field_resolve_data"))}</label>
-          <textarea id="f-notif-resolve-data" rows="5" placeholder='${esc(t("ph_data_json"))}'>${nc.resolve_data ? JSON.stringify(nc.resolve_data, null, 2) : ""}</textarea>
-        </div>
-
-        <div class="test-btn-row">
-          <button type="button" id="btn-test-resolve" class="secondary-btn">
-            <ha-icon icon="mdi:send" style="--mdc-icon-size:16px;"></ha-icon> ${esc(t("btn_test_resolve"))}
-          </button>
-          <span id="test-resolve-status" class="hint"></span>
         </div>
       </div>
 
@@ -244,31 +234,6 @@ export function bindAlertForm(panel) {
     statusEl.style.color = "";
     try {
       await testNotification(panel._hass, { targets, title, message, data, is_resolve: false, ...getTestContext() });
-      statusEl.textContent = t("status_sent");
-      statusEl.style.color = "var(--success-color)";
-    } catch (e) {
-      statusEl.textContent = t("err_prefix") + (e.message || e);
-      statusEl.style.color = "var(--error-color)";
-    }
-    setTimeout(() => { statusEl.textContent = ""; }, 5000);
-  });
-
-  // Test resolve button
-  root.querySelector("#btn-test-resolve")?.addEventListener("click", async () => {
-    const statusEl = root.querySelector("#test-resolve-status");
-    const targets = [...(chipList?.querySelectorAll(".chip") || [])].map((c) => c.dataset.target);
-    if (targets.length === 0) {
-      statusEl.textContent = t("status_no_targets");
-      statusEl.style.color = "var(--error-color)";
-      return;
-    }
-    const title = root.querySelector("#f-notif-title")?.value || "";
-    const message = root.querySelector("#f-notif-resolve-msg")?.value || "";
-    const data = parseDataField("#f-notif-resolve-data");
-    statusEl.textContent = t("status_sending");
-    statusEl.style.color = "";
-    try {
-      await testNotification(panel._hass, { targets, title, message, data, is_resolve: true, ...getTestContext() });
       statusEl.textContent = t("status_sent");
       statusEl.style.color = "var(--success-color)";
     } catch (e) {

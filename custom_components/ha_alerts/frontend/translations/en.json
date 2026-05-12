@@ -13,7 +13,6 @@
     "btn_add_target": "+ Add",
     "btn_create_category": "+ Create new...",
     "btn_test_alert": "Test alert notification",
-    "btn_test_resolve": "Test resolve notification",
     "field_entity_id": "Entity ID",
     "field_name": "Name",
     "field_condition": "Condition",
@@ -25,7 +24,6 @@
     "field_data": "Data (JSON, optional)",
     "field_repeat": "Repeat interval (minutes)",
     "field_resolve_message": "Resolve message",
-    "field_resolve_data": "Resolve data (JSON, optional)",
     "ph_name": "Alert name",
     "ph_condition": "entity_id or Jinja2 template (e.g. binary_sensor.door or {{ states('sensor.x') | float > 30 }})",
     "ph_new_category": "New category name",
@@ -49,7 +47,6 @@
     "err_id_invalid": "Invalid Entity ID. Use: ha_alerts.<lowercase_letters_numbers_underscores>",
     "err_category_required": "Enter a name for the new category.",
     "err_notif_data_json": "Notification data is not valid JSON.",
-    "err_resolve_data_json": "Resolve notification data is not valid JSON.",
     "err_targets_required": "At least one notification target is required when notifications are enabled.",
     "err_notif_templates_invalid": "One or more notification templates are invalid: {fields}.",
     "err_id_required": "Entity ID is required.",
@@ -68,5 +65,8 @@
     "tooltip_fix_id": "Fix the Entity ID issue first",
     "tooltip_fix_notification": "Fix notification template errors first",
     "field_description": "Description",
-    "ph_description": "Optional short description (max 255 chars)"
-  }
+    "ph_description": "Optional short description (max 255 chars)",
+    "ph_title_optional": "Optional — leave blank to send no title",
+    "hint_title_blank": "Leave blank to send no title.",
+    "hint_data_shared": "Applied to both alert and resolve notifications."
+}

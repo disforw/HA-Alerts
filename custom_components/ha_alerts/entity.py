@@ -310,7 +310,7 @@ class AlertEntity(BinarySensorEntity, RestoreEntity):
         if not nc.get("enabled") or not nc.get("targets"):
             return
 
-        title = self._render_template(nc.get("title", "")) or self._render_template(NOTIF_DEFAULT_TITLE)
+        title = self._render_template(nc.get("title", ""))
         message = self._render_template(nc.get("message", "")) or self._render_template(NOTIF_DEFAULT_MESSAGE)
 
         for target in nc["targets"]:
@@ -330,17 +330,10 @@ class AlertEntity(BinarySensorEntity, RestoreEntity):
                     self.entity_id, service_name,
                 )
 
-    @callback
-    def _send_resolve_if_needed(self) -> None:
-        """Schedule resolve notification if configured."""
-        nc = self._notification_config
-        if nc.get("enabled") and nc.get("resolve_message") and nc.get("targets"):
-            self.hass.async_create_task(self._async_send_resolve_notification())
-
     async def _async_send_resolve_notification(self) -> None:
         """Send resolve notification to all configured targets."""
         nc = self._notification_config
-        title = self._render_template(nc.get("title", "")) or self._render_template(NOTIF_DEFAULT_TITLE)
+        title = self._render_template(nc.get("title", ""))
         message = self._render_template(nc.get("resolve_message", "")) or self._render_template(NOTIF_DEFAULT_RESOLVE_MESSAGE)
 
         for target in nc.get("targets", []):
@@ -348,8 +341,8 @@ class AlertEntity(BinarySensorEntity, RestoreEntity):
             service_data: dict = {"message": message}
             if title:
                 service_data["title"] = title
-            if nc.get("resolve_data"):
-                service_data["data"] = nc["resolve_data"]
+            if nc.get("data"):
+                service_data["data"] = nc["data"]
             try:
                 await self.hass.services.async_call("notify", service_name, service_data)
             except Exception:

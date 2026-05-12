@@ -410,25 +410,14 @@ class HaAlertsPanel extends HTMLElement {
       data: null,
       repeat: parseInt(this.shadowRoot.querySelector("#f-notif-repeat")?.value || "0", 10),
       resolve_message: this.shadowRoot.querySelector("#f-notif-resolve-msg")?.value || "",
-      resolve_data: null,
     };
-    // Parse data JSON if provided
+    // Parse shared data JSON if provided
     const dataStr = this.shadowRoot.querySelector("#f-notif-data")?.value?.trim();
     if (dataStr) {
       try {
         notification.data = JSON.parse(dataStr);
       } catch (_) {
         this._showError(this._t("err_notif_data_json"));
-        return;
-      }
-    }
-    // Parse resolve data JSON if provided
-    const resolveDataStr = this.shadowRoot.querySelector("#f-notif-resolve-data")?.value?.trim();
-    if (resolveDataStr) {
-      try {
-        notification.resolve_data = JSON.parse(resolveDataStr);
-      } catch (_) {
-        this._showError(this._t("err_resolve_data_json"));
         return;
       }
     }
