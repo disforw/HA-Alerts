@@ -22,10 +22,11 @@ ATTR_DESCRIPTION = "description"
 ATTR_ENABLED = "enabled"
 
 # Service names
-SERVICE_QUIT = "quit"
-SERVICE_ACK = "ack"
-SERVICE_UNACK = "unack"
-SERVICE_ACK_TOGGLE = "ack_toggle"
+SERVICE_ADD = "add"
+SERVICE_REMOVE = "remove"
+SERVICE_UPDATE = "update"
+SERVICE_ENABLE = "enable"
+SERVICE_DISABLE = "disable"
 
 # Default category
 DEFAULT_CATEGORY_ID = "default"

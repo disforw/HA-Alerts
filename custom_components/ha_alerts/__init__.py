@@ -18,10 +18,11 @@ from homeassistant.helpers import config_validation as cv
 
 from .const import (
     DOMAIN,
-    SERVICE_ACK,
-    SERVICE_ACK_TOGGLE,
-    SERVICE_QUIT,
-    SERVICE_UNACK,
+    SERVICE_ADD,
+    SERVICE_REMOVE,
+    SERVICE_UPDATE,
+    SERVICE_ENABLE,
+    SERVICE_DISABLE,
     INTEGRATION_VERSION as _INTEGRATION_VERSION,
 )
 
@@ -112,8 +113,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Unload platforms (removes AlertEntity instances)
     await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
-    # Remove services registered in async_setup_entry
-    for service in (SERVICE_QUIT, SERVICE_ACK, SERVICE_UNACK, SERVICE_ACK_TOGGLE):
+    # Remove old services registered in async_setup_entry
+    for service in (SERVICE_ADD, SERVICE_REMOVE, SERVICE_UPDATE, SERVICE_ENABLE, SERVICE_DISABLE):
         hass.services.async_remove(DOMAIN, service)
 
     # Keep domain-level flags (_ws_registered, _static_registered); drop entry-bound runtime.
@@ -129,94 +130,156 @@ def _register_services(
 ) -> None:
     """Register ha_alerts services."""
 
+@callback
+def _register_services(
+    hass: HomeAssistant,
+    manager: HaAlertsManager,
+) -> None:
+    """Register ha_alerts services."""
+
     @callback
-    def handle_quit(call: ServiceCall) -> None:
+    async def handle_add(call: ServiceCall) -> None:
+        """Handle add service - create a new alert."""
         try:
-            entity_ids = call.data.get("entity_id")
-            alerts = manager.alert_entities
-
-            if entity_ids:
-                if isinstance(entity_ids, str):
-                    entity_ids = [entity_ids]
-                targets = [a for a in alerts if a.entity_id in entity_ids]
-            else:
-                targets = alerts
-
-            for alert in targets:
-                alert.quit()
+            service_data = {
+                "name": call.data.get("name"),
+                "condition": call.data.get("condition"),
+                "entity_id": call.data.get("entity_id"),
+                "description": call.data.get("description"),
+                "category_id": call.data.get("category_id"),
+                "category_name": call.data.get("category_name"),
+                "notification": call.data.get("notification"),
+            }
+            await manager.async_create_alert(service_data)
         except Exception:
-            _LOGGER.exception("Error in handle_quit service")
+            _LOGGER.exception("Error in handle_add service")
 
     hass.services.async_register(
         DOMAIN,
-        SERVICE_QUIT,
-        handle_quit,
+        SERVICE_ADD,
+        handle_add,
         schema=vol.Schema({
-            vol.Optional("entity_id"): vol.Any(
-                cv.entity_id, vol.All(cv.ensure_list, [cv.entity_id])
-            ),
-        }),
-    )
-
-    def _resolve_alert_targets(entity_ids):
-        alerts = manager.alert_entities
-        if isinstance(entity_ids, str):
-            entity_ids = [entity_ids]
-        return [a for a in alerts if a.entity_id in entity_ids]
-
-    @callback
-    def handle_ack(call: ServiceCall) -> None:
-        try:
-            for alert in _resolve_alert_targets(call.data["entity_id"]):
-                alert.ack()
-        except Exception:
-            _LOGGER.exception("Error in handle_ack service")
-
-    hass.services.async_register(
-        DOMAIN,
-        SERVICE_ACK,
-        handle_ack,
-        schema=vol.Schema({
-            vol.Required("entity_id"): vol.Any(
-                cv.entity_id, vol.All(cv.ensure_list, [cv.entity_id])
-            ),
+            vol.Required("name"): str,
+            vol.Required("condition"): str,
+            vol.Optional("entity_id"): str,
+            vol.Optional("description"): str,
+            vol.Optional("category_id"): str,
+            vol.Optional("category_name"): str,
+            vol.Optional("notification"): dict,
         }),
     )
 
     @callback
-    def handle_unack(call: ServiceCall) -> None:
+    async def handle_remove(call: ServiceCall) -> None:
+        """Handle remove service - delete an alert by ID."""
         try:
-            for alert in _resolve_alert_targets(call.data["entity_id"]):
-                alert.unack()
+            alert_id = call.data.get("id")
+            if alert_id:
+                await manager.async_delete_alert(alert_id)
         except Exception:
-            _LOGGER.exception("Error in handle_unack service")
+            _LOGGER.exception("Error in handle_remove service")
 
     hass.services.async_register(
         DOMAIN,
-        SERVICE_UNACK,
-        handle_unack,
+        SERVICE_REMOVE,
+        handle_remove,
         schema=vol.Schema({
-            vol.Required("entity_id"): vol.Any(
-                cv.entity_id, vol.All(cv.ensure_list, [cv.entity_id])
-            ),
+            vol.Required("id"): str,
         }),
     )
-    
+
     @callback
-    def handle_ack_toggle(call: ServiceCall) -> None:
+    async def handle_update(call: ServiceCall) -> None:
+        """Handle update service - modify an existing alert."""
         try:
-            for alert in _resolve_alert_targets(call.data["entity_id"]):
-                alert.ack_toggle()
+            alert_id = call.data.get("id")
+            if not alert_id:
+                raise ValueError("Alert ID is required")
+
+            update_data = {}
+            if "name" in call.data:
+                update_data["name"] = call.data["name"]
+            if "condition" in call.data:
+                update_data["condition"] = call.data["condition"]
+            if "entity_id" in call.data:
+                update_data["entity_id"] = call.data["entity_id"]
+            if "description" in call.data:
+                update_data["description"] = call.data["description"]
+            if "category_id" in call.data:
+                update_data["category_id"] = call.data["category_id"]
+            if "category_name" in call.data:
+                update_data["category_name"] = call.data["category_name"]
+            if "notification" in call.data:
+                update_data["notification"] = call.data["notification"]
+
+            await manager.async_update_alert(alert_id, update_data)
         except Exception:
-            _LOGGER.exception("Error in handle_ack_toggle service")
+            _LOGGER.exception("Error in handle_update service")
 
     hass.services.async_register(
         DOMAIN,
-        SERVICE_ACK_TOGGLE,
-        handle_ack_toggle,
+        SERVICE_UPDATE,
+        handle_update,
         schema=vol.Schema({
-            vol.Required("entity_id"): vol.Any(
-                cv.entity_id, vol.All(cv.ensure_list, [cv.entity_id])
-            ),
+            vol.Required("id"): str,
+            vol.Optional("name"): str,
+            vol.Optional("condition"): str,
+            vol.Optional("entity_id"): str,
+            vol.Optional("description"): str,
+            vol.Optional("category_id"): str,
+            vol.Optional("category_name"): str,
+            vol.Optional("notification"): dict,
+        }),
+    )
+
+    @callback
+    async def handle_enable(call: ServiceCall) -> None:
+        """Handle enable service - enable an alert by ID."""
+        try:
+            alert_id = call.data.get("id")
+            if alert_id:
+                existing = manager.store.get_alert(alert_id)
+                if existing:
+                    existing["enabled"] = True
+                    manager.store.set_alert(alert_id, existing)
+                    await manager.store.async_save()
+                    entity = manager.get_alert_entity(alert_id)
+                    if entity:
+                        entity.enable()
+        except Exception:
+            _LOGGER.exception("Error in handle_enable service")
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_ENABLE,
+        handle_enable,
+        schema=vol.Schema({
+            vol.Required("id"): str,
+        }),
+    )
+
+    @callback
+    async def handle_disable(call: ServiceCall) -> None:
+        """Handle disable service - disable an alert by ID."""
+        try:
+            alert_id = call.data.get("id")
+            if alert_id:
+                existing = manager.store.get_alert(alert_id)
+                if existing:
+                    existing["enabled"] = False
+                    manager.store.set_alert(alert_id, existing)
+                    await manager.store.async_save()
+                    entity = manager.get_alert_entity(alert_id)
+                    if entity:
+                        entity.disable()
+        except Exception:
+            _LOGGER.exception("Error in handle_disable service")
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_DISABLE,
+        handle_disable,
+        schema=vol.Schema({
+            vol.Required("id"): str,
         }),
     )

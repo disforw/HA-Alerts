@@ -57,11 +57,15 @@ export async function disableAlert(hass, alert_uid) {
   return hass.callWS({ type: "ha_alerts/alert/disable", alert_uid });
 }
 
+export async function resolveAlert(hass, alert_uid) {
+  assertHass(hass);
+  return hass.callWS({ type: "ha_alerts/alert/ack", alert_uid });
+}
+
 export async function triggerAlert(hass, alert_uid) {
   assertHass(hass);
   return hass.callWS({ type: "ha_alerts/alert/trigger", alert_uid });
 }
-
 
 export async function suggestEntityId(hass, name, alert_uid) {
   assertHass(hass);

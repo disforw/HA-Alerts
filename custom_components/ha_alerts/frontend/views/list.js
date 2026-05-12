@@ -1,5 +1,7 @@
 import { renderAlertRow } from "../components/alert-row.js";
-import { enableAlert, disableAlert, triggerAlert } from "../api/ws.js";
+import { enableAlert, disableAlert, triggerAlert, resolveAlert } from "../api/ws.js";
+
+const safeId = (str) => String(str).replace(/[^a-zA-Z0-9_-]/g, '_');
 
 export function renderList(panel) {
   const groups = panel._getGrouped();
@@ -78,7 +80,7 @@ export async function handleListClick(panel, e) {
   if (menuBtn) {
     e.stopPropagation();
     const menuId = menuBtn.dataset.menuId;
-    const menu = root.querySelector(`#menu-${CSS.escape(menuId)}`);
+    const menu = root.querySelector(`#menu-${safeId(menuId)}`);
 
     // Close other menus
     root.querySelectorAll(".alert-menu.open").forEach((m) => {
@@ -154,7 +156,12 @@ export async function handleListClick(panel, e) {
       panel.shadowRoot.appendChild(statusEl);
       setTimeout(() => statusEl.remove(), 2000);
     } catch (err) {
-      console.error("Failed to trigger alert:", err);
+      // Show visible error to user
+      const statusEl = document.createElement("div");
+      statusEl.textContent = t("status_trigger_failed");
+      statusEl.style.cssText = "position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.8);color:var(--error-color);padding:12px 24px;border-radius:6px;z-index:1000;";
+      panel.shadowRoot.appendChild(statusEl);
+      setTimeout(() => statusEl.remove(), 2000);
     }
     return true;
   }

@@ -1,62 +1,124 @@
-quit:
-  name: Quit alert
-  description: >-
-    Reset alerts to idle state. Only works when the alert condition is no longer
-    active. Without entity_id, quits all eligible alerts.
+add:
+  name: Add alert
+  description: Create a new alert with the specified configuration.
   fields:
+    name:
+      name: Name
+      description: The name of the alert
+      required: true
+      example: "Front Door Alert"
+    condition:
+      name: Condition
+      description: The alert trigger condition (template or entity_id)
+      required: true
+      example: "{{ states('binary_sensor.front_door') == 'on' }}"
     entity_id:
-      name: Entity
-      description: The alert entity to quit. Leave empty to quit all eligible alerts.
+      name: Entity ID
+      description: Optional custom entity_id for the alert
       required: false
-      selector:
-        entity:
-          filter:
-            domain: binary_sensor
-            integration: ha_alerts
+      example: "binary_sensor.my_custom_alert"
+    description:
+      name: Description
+      description: Optional description for the alert
+      required: false
+      example: "Alerts when front door is opened"
+    category_id:
+      name: Category ID
+      description: Optional category ID for grouping
+      required: false
+      example: "security"
+    category_name:
+      name: Category Name
+      description: Optional category name (only used if category_id doesn't exist)
+      required: false
+      example: "Security Alerts"
+    notification:
+      name: Notification
+      description: Optional notification configuration
+      required: false
+      example: 
+        enabled: true
+        targets:
+          - notify.mobile_app_phone
+        title: "Alert: {{ name }}"
+        message: "{{ name }} was triggered!"
 
-ack:
-  name: Acknowledge alert
-  description: >-
-    Acknowledge an active alert. The alert remains active but is marked as
-    acknowledged.
+remove:
+  name: Remove alert
+  description: Delete an alert by its unique ID.
   fields:
-    entity_id:
-      name: Entity
-      description: The alert entity to acknowledge.
+    id:
+      name: Alert ID
+      description: The unique identifier of the alert to remove
       required: true
-      selector:
-        entity:
-          filter:
-            domain: binary_sensor
-            integration: ha_alerts
+      example: "550e8400-e29b-41d4-a716-446655440000"
 
-unack:
-  name: Remove acknowledgement
-  description: >-
-    Remove acknowledgement from an active alert.
+update:
+  name: Update alert
+  description: Modify an existing alert. Only provided fields are updated.
   fields:
-    entity_id:
-      name: Entity
-      description: The alert entity to remove acknowledgement from.
+    id:
+      name: Alert ID
+      description: The unique identifier of the alert to update
       required: true
-      selector:
-        entity:
-          filter:
-            domain: binary_sensor
-            integration: ha_alerts
+      example: "550e8400-e29b-41d4-a716-446655440000"
+    name:
+      name: Name
+      description: New name for the alert
+      required: false
+      example: "Updated Alert Name"
+    condition:
+      name: Condition
+      description: New alert trigger condition
+      required: false
+      example: "{{ states('binary_sensor.back_door') == 'on' }}"
+    entity_id:
+      name: Entity ID
+      description: New custom entity_id for the alert
+      required: false
+      example: "binary_sensor.updated_entity"
+    description:
+      name: Description
+      description: New description for the alert
+      required: false
+      example: "Updated alert description"
+    category_id:
+      name: Category ID
+      description: New category ID
+      required: false
+      example: "safety"
+    category_name:
+      name: Category Name
+      description: New category name (only used if category_id doesn't exist)
+      required: false
+      example: "Safety Alerts"
+    notification:
+      name: Notification
+      description: New notification configuration
+      required: false
+      example: 
+        enabled: true
+        targets:
+          - notify.mobile_app_phone
+        title: "Updated: {{ name }}"
+        message: "Alert has been updated and triggered!"
 
-ack_toggle:
-  name: Toggle acknowledgement
-  description: >-
-    Toggle the acknowledgement state of an active alert. If acknowledged, it
-    becomes unacknowledged; if unacknowledged, it becomes acknowledged.
+enable:
+  name: Enable alert
+  description: Enable (arm) an alert by its unique ID.
   fields:
-    entity_id:
-      name: Entity
-      description: The alert entity to toggle acknowledgement on.
+    id:
+      name: Alert ID
+      description: The unique identifier of the alert to enable
       required: true
-      selector:
-        entity:
-          filter:
-            domain: binary_sensor
-            integration: ha_alerts
+      example: "550e8400-e29b-41d4-a716-446655440000"
+
+disable:
+  name: Disable alert
+  description: Disable (disarm) an alert by its unique ID.
+  fields:
+    id:
+      name: Alert ID
+      description: The unique identifier of the alert to disable
+      required: true
+      example: "550e8400-e29b-41d4-a716-446655440000"
