@@ -1,1 +1,100 @@
-# Coming Soon
+# HA Alerts
+
+A powerful, UI-driven alert system for Home Assistant. Monitor conditions, send rich notifications, and manage everything from a dedicated sidebar panel — or automate it all with services.
+
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
+[![GitHub release](https://img.shields.io/github/release/disforw/HA-Alerts.svg)](https://github.com/disforw/HA-Alerts/releases)
+
+---
+
+## Features
+
+- **Sidebar panel** — Dedicated UI with a live alert list, categories, and per-alert actions
+- **Condition-based triggering** — Any Jinja2 template. When it evaluates to `true`, the alert fires
+- **Rich notifications** — Send to any HA notify service. Supports **Markdown formatting** in message, title, and restore message fields
+- **Repeat notifications** — Keep alerting on an interval until acknowledged or condition clears
+- **Skip first** — Optionally wait for the first repeat interval before sending the initial notification
+- **Restore message** — Send a separate notification when the condition clears
+- **Enable / Disable** — Pause individual alerts without deleting them. Re-enabling immediately evaluates the condition — if it's already true, the alert fires instantly
+- **Categories** — Organize alerts into groups in the panel
+- **Target selector** — Pick from all available notify services in the UI
+- **Entities in Helpers** — Each alert is a `binary_sensor` entity, fully accessible in automations and dashboards
+
+---
+
+## Installation
+
+### HACS (recommended)
+
+1. In HACS → **Integrations** → ⋮ → **Custom repositories**
+2. Add `https://github.com/disforw/HA-Alerts` as an **Integration**
+3. Install **HA Alerts** and restart Home Assistant
+
+### Manual
+
+Copy `custom_components/ha_alerts/` into your HA `custom_components/` directory and restart.
+
+---
+
+## Configuration
+
+After installation, go to **Settings → Devices & Services → Add Integration → HA Alerts** to set up the integration. Individual alerts are created and managed from the **HA Alerts** sidebar panel.
+
+---
+
+## Services
+
+HA Alerts exposes five services, making it fully controllable via automations, scripts, and AI agents.
+
+| Service | Description |
+|---|---|
+| `ha_alerts.add` | Create a new alert |
+| `ha_alerts.remove` | Delete an alert by ID |
+| `ha_alerts.update` | Update an existing alert (partial update supported) |
+| `ha_alerts.enable` | Enable a disabled alert |
+| `ha_alerts.disable` | Disable an alert without deleting it |
+
+### 🤖 AI Agent Friendly
+
+All alerts are manageable via services — no UI required. AI assistants and automation agents can create, update, enable, disable, and remove alerts programmatically. Pair this with Home Assistant's conversation agent or any MCP-compatible tool for a fully voice/agent-driven alert workflow.
+
+---
+
+## Notification Formatting
+
+Messages, titles, and restore messages support **Jinja2 templates** and **Markdown formatting**.
+
+Notifications default to plain text. To enable Markdown, add a `data` field to your alert with the parse mode for your service:
+
+```yaml
+data:
+  parse_mode: MarkdownV2
+```
+
+**Example Telegram message with Markdown:**
+```
+*Living Room* — light has been on for over an hour\.
+```
+
+> **Note:** Different notify services support different Markdown dialects. Telegram uses MarkdownV2, mobile apps use their own formatting. Plain text works everywhere.
+
+---
+
+## Entity Attributes
+
+Each alert entity (`binary_sensor.ha_alerts_*`) exposes:
+
+| Attribute | Description |
+|---|---|
+| `condition` | Whether the trigger condition is currently true |
+| `ack` | Whether the alert has been acknowledged |
+| `enabled` | Whether the alert is active |
+| `description` | Human-readable summary |
+
+---
+
+## Credits
+
+- Backend based on the original [ha_alerts](https://github.com/disforw/HA-Alerts/tree/v1.3-stable) integration
+- Panel UI inspired by [gleanlux/alertsys](https://github.com/gleanlux/alertsys)
+- Maintained by [@disforw](https://github.com/disforw)
