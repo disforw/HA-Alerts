@@ -349,8 +349,7 @@ class AlertEntity(BinarySensorEntity, RestoreEntity):
             service_data: dict = {"message": message}
             if title:
                 service_data["title"] = title
-            if nc.get("data"):
-                service_data["data"] = nc["data"]
+            service_data["data"] = {"parse_mode": "plain", **(nc.get("data") or {})}
             if not self.hass.services.has_service("notify", service_name):
                 continue
             try:
@@ -372,8 +371,7 @@ class AlertEntity(BinarySensorEntity, RestoreEntity):
             service_data: dict = {"message": message}
             if title:
                 service_data["title"] = title
-            if nc.get("data"):
-                service_data["data"] = nc["data"]
+            service_data["data"] = {"parse_mode": "plain", **(nc.get("data") or {})}
             try:
                 await self.hass.services.async_call("notify", service_name, service_data)
             except Exception:
