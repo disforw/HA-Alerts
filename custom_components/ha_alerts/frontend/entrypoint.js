@@ -1,5 +1,7 @@
-// HA Alerts built-in panel entrypoint (lazy-loads the real panel to avoid early-load issues)
-// Version: 2.0.0
+// HA Alerts built-in panel entrypoint
+// Version: 2.0.1
+import "./ha-alerts-panel.js";
+
 class HaPanelHaAlerts extends HTMLElement {
   constructor() {
     super();
@@ -26,13 +28,11 @@ class HaPanelHaAlerts extends HTMLElement {
     if (this._panelEl) this._panelEl.narrow = narrow;
   }
 
-  async connectedCallback() {
+  connectedCallback() {
     if (this._loaded) return;
     this._loaded = true;
 
-    // Load the actual panel implementation only when the HA router mounts this view.
-    await import("./ha-alerts-panel.js");
-
+    // Create the panel element immediately (module is already loaded via static import)
     this._panelEl = document.createElement("ha-alerts-panel");
     this.shadowRoot.appendChild(this._panelEl);
 
