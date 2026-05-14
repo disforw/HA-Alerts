@@ -80,11 +80,10 @@ export const STYLES = `
         gap: 10px;
         padding: 8px 8px;
         border-bottom: 1px solid var(--divider);
+        flex-wrap: wrap;
       }
       .alert-row:last-child { border-bottom: none; }
-      .alert-name { font-weight: 500; min-width: 120px; }
-      .alert-condition { flex: 1; color: var(--text-secondary); font-size: 13px; overflow: hidden; text-overflow: ellipsis; }
-      .alert-condition code { background: rgba(0,0,0,0.05); padding: 2px 6px; border-radius: 3px; }
+      .alert-name { font-weight: 500; min-width: 120px; flex: 1; }
       .alert-autoquit {
         display: flex;
         align-items: center;
@@ -187,6 +186,7 @@ export const STYLES = `
         border-radius: 4px;
         background: var(--bg);
         overflow: hidden;
+        flex-wrap: wrap;
       }
       .id-input-wrap:focus-within {
         border-color: var(--primary-color);
@@ -198,6 +198,7 @@ export const STYLES = `
         white-space: nowrap;
         flex-shrink: 0;
         user-select: none;
+        word-break: break-word;
       }
       .id-input-wrap input {
         border: none !important;
@@ -207,7 +208,7 @@ export const STYLES = `
         background: transparent;
         color: var(--text);
         flex: 1;
-        min-width: 0;
+        min-width: 80px;
         width: auto;
       }
       .id-error {
@@ -217,7 +218,7 @@ export const STYLES = `
         white-space: nowrap;
         flex-shrink: 0;
       }
-      .aq-row { display: flex; gap: 20px; align-items: center; }
+      .aq-row { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
       .checkbox-label { display: flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer; }
       .checkbox-label.dimmed { opacity: 0.45; }
       .cat-row { display: flex; gap: 8px; }

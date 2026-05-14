@@ -83,7 +83,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Load entrypoint wrapper as an extra JS module.
     # It defines <ha-panel-ha-alerts>, which the built-in panel renders.
-    entry_url = f"{PANEL_URL_ROOT}/entrypoint.js?v={_INTEGRATION_VERSION}"
+    # Note: Do NOT include query params (e.g., ?v=...) as they break relative imports in ES modules.
+    # Version is embedded as a comment in the JS files instead.
+    entry_url = f"{PANEL_URL_ROOT}/entrypoint.js"
     frontend.add_extra_js_url(hass, entry_url)
     hass.data[DOMAIN]["panel_entry_url"] = entry_url
 

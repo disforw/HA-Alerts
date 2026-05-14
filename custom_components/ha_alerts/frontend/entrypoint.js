@@ -1,4 +1,5 @@
 // HA Alerts built-in panel entrypoint (lazy-loads the real panel to avoid early-load issues)
+// Version: 2.0.0
 class HaPanelHaAlerts extends HTMLElement {
   constructor() {
     super();
