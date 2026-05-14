@@ -407,6 +407,7 @@ class HaAlertsManager:
                 manager=self,
                 notification_config=notification,
                 description=description,
+                category_id=category_id,
             )
             self._async_add_entities_cb([entity])
 
@@ -473,6 +474,7 @@ class HaAlertsManager:
                 manager=self,
                 notification_config=notification,
                 enabled=alert_def.get("enabled", True),
+                category_id=category_id,
             )
             self._async_add_entities_cb([entity])
 

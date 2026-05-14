@@ -41,7 +41,6 @@ class AlertEntity(BinarySensorEntity, RestoreEntity):
     """Represents a single alert in the ha_alerts domain."""
 
     _attr_should_poll = False
-    _attr_icon = "mdi:alert-circle-outline"
 
     def __init__(
         self,
@@ -53,6 +52,7 @@ class AlertEntity(BinarySensorEntity, RestoreEntity):
         notification_config: dict | None = None,
         description: str = "",
         enabled: bool = True,
+        category_id: str = "",
     ) -> None:
         self.hass = hass
         self._uid = uid
@@ -82,6 +82,7 @@ class AlertEntity(BinarySensorEntity, RestoreEntity):
 
         # Notification
         self._notification_config = notification_config or {}
+        self._category_id = category_id
         self._notif_timer_unsub = None
         self._triggered_at = None
 
@@ -90,16 +91,30 @@ class AlertEntity(BinarySensorEntity, RestoreEntity):
         return self._uid
 
     @property
+    def icon(self) -> str:
+        return "mdi:bell-alert" if self._active else "mdi:alert-circle-outline"
+
+    @property
     def is_on(self) -> bool:
         return self._active
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
+        nc = self._notification_config
         return {
             ATTR_CONDITION: self._condition_met,
             ATTR_ACK: self._ack,
             ATTR_DESCRIPTION: self._description,
             ATTR_ENABLED: self._enabled,
+            "category_id": self._category_id,
+            "condition_template": self._condition_config,
+            "notification_targets": nc.get("targets", []),
+            "notification_message": nc.get("message", ""),
+            "notification_title": nc.get("title", ""),
+            "notification_resolve_message": nc.get("resolve_message", ""),
+            "notification_repeat": nc.get("repeat", 0),
+            "notification_skip_first": nc.get("skip_first", False),
+            "notification_data": nc.get("data") or {},
         }
 
     @property
