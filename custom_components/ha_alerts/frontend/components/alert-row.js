@@ -5,6 +5,7 @@ export function renderAlertRow({ alert, t, esc, enabled }) {
     <div class="alert-row ${enabled === false ? 'alert-row--disabled' : ''}" data-id="${alert.id}">
       <ha-icon icon="mdi:alert-circle-outline" style="--mdc-icon-size:22px; flex-shrink:0;"></ha-icon>
       <span class="alert-name">${esc(alert.name)}</span>
+      <span class="alert-condition"><code>${esc(alert.condition)}</code></span>
       <div class="alert-menu-wrap">
         <button class="icon-btn menu-btn" data-menu-id="${alert.id}" title="${esc(t("status_actions"))}">
           <ha-icon icon="mdi:dots-vertical" style="--mdc-icon-size:20px;"></ha-icon>

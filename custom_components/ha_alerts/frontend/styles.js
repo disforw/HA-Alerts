@@ -84,6 +84,8 @@ export const STYLES = `
       }
       .alert-row:last-child { border-bottom: none; }
       .alert-name { font-weight: 500; min-width: 120px; flex: 1; }
+      .alert-condition { flex: 1; color: var(--text-secondary); font-size: 13px; overflow: hidden; text-overflow: ellipsis; }
+      .alert-condition code { background: rgba(0,0,0,0.05); padding: 2px 6px; border-radius: 3px; }
       .alert-autoquit {
         display: flex;
         align-items: center;
@@ -273,4 +275,8 @@ export const STYLES = `
       .test-btn-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; margin-bottom: 12px; }
       .form-actions { display: flex; gap: 12px; margin-top: 24px; }
       .error-msg { color: var(--error-color); background: rgba(219,68,55,0.08); padding: 10px 14px; border-radius: 4px; margin-top: 12px; }
+
+      @media (max-width: 600px) {
+        .alert-condition { display: none; }
+      }
     `;
