@@ -37,4 +37,4 @@ NOTIF_DEFAULT_TITLE = "HA Alerts: {{ name }}"
 NOTIF_DEFAULT_MESSAGE = "Alert '{{ name }}' triggered"
 NOTIF_DEFAULT_RESOLVE_MESSAGE = "Alert '{{ name }}' - condition cleared"
 
-INTEGRATION_VERSION = "2.0.0"
+INTEGRATION_VERSION = "2.0.2"

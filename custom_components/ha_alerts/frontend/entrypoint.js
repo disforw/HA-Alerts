@@ -1,5 +1,5 @@
 // HA Alerts built-in panel entrypoint
-// Version: 2.0.1
+// Version: 2.0.2
 import "./ha-alerts-panel.js";
 
 class HaPanelHaAlerts extends HTMLElement {
