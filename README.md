@@ -13,12 +13,9 @@ A powerful, UI-driven alert system for Home Assistant. Monitor conditions, send 
 - **Condition-based triggering** — Any Jinja2 template. When it evaluates to `true`, the alert fires
 - **Rich notifications** — Send to any HA notify service. Supports **Markdown formatting** in message, title, and restore message fields
 - **Repeat notifications** — Keep alerting on an interval until acknowledged or condition clears
-- **Skip first** — Optionally wait for the first repeat interval before sending the initial notification
-- **Restore message** — Send a separate notification when the condition clears
 - **Enable / Disable** — Pause individual alerts without deleting them. Re-enabling immediately evaluates the condition — if it's already true, the alert fires instantly
 - **Categories** — Organize alerts into groups in the panel
 - **Target selector** — Pick from all available notify services in the UI
-- **Entities in Helpers** — Each alert is a `binary_sensor` entity, fully accessible in automations and dashboards
 
 ---
 
@@ -29,10 +26,6 @@ A powerful, UI-driven alert system for Home Assistant. Monitor conditions, send 
 1. In HACS → **Integrations** → ⋮ → **Custom repositories**
 2. Add `https://github.com/disforw/HA-Alerts` as an **Integration**
 3. Install **HA Alerts** and restart Home Assistant
-
-### Manual
-
-Copy `custom_components/ha_alerts/` into your HA `custom_components/` directory and restart.
 
 ---
 
@@ -68,28 +61,8 @@ Notifications default to plain text. To enable Markdown, add a `data` field to y
 
 ```yaml
 data:
-  parse_mode: MarkdownV2
+  parse_mode: markdown
 ```
-
-**Example Telegram message with Markdown:**
-```
-*Living Room* — light has been on for over an hour\.
-```
-
-> **Note:** Different notify services support different Markdown dialects. Telegram uses MarkdownV2, mobile apps use their own formatting. Plain text works everywhere.
-
----
-
-## Entity Attributes
-
-Each alert entity (`binary_sensor.ha_alerts_*`) exposes:
-
-| Attribute | Description |
-|---|---|
-| `condition` | Whether the trigger condition is currently true |
-| `ack` | Whether the alert has been acknowledged |
-| `enabled` | Whether the alert is active |
-| `description` | Human-readable summary |
 
 ---
 
