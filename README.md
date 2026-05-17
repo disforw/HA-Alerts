@@ -7,6 +7,8 @@ A powerful, UI-driven alert system for Home Assistant. Monitor conditions, send 
 
 ---
 
+[![screen1](IMG7095.PNG)]
+
 ## Features
 
 - **Sidebar panel** — Dedicated UI with a live alert list, categories, and per-alert actions
