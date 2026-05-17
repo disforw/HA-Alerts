@@ -55,19 +55,6 @@ All alerts are manageable via services — no UI required. AI assistants and aut
 
 ---
 
-## Notification Formatting
-
-Messages, titles, and restore messages support **Jinja2 templates** and **Markdown formatting**.
-
-Notifications default to plain text. To enable Markdown, add a `data` field to your alert with the parse mode for your service:
-
-```yaml
-data:
-  parse_mode: markdown
-```
-
----
-
 ## Credits
 
 - Backend based on the original [ha_alerts](https://github.com/disforw/HA-Alerts/tree/v1.3-stable) integration
