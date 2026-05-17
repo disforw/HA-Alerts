@@ -7,7 +7,7 @@ A powerful, UI-driven alert system for Home Assistant. Monitor conditions, send 
 
 ---
 
-[![screen1](IMG7095.PNG)]
+[![screen1](IMG_4459.jpeg)]
 
 ## Features
 
